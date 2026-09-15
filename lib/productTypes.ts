@@ -1,0 +1,112 @@
+export type ProductTypeId =
+  | "ebook"
+  | "guide"
+  | "planner"
+  | "workbook"
+  | "template";
+
+export type ProductTypeMeta = {
+  id: ProductTypeId;
+  label: string;
+  shortLabel: string;
+  description: string;
+  accent: string; // hex accent color
+  accentSoft: string; // light tint for backgrounds
+  emoji: string;
+  sectionNoun: string; // what to call a "section" in prompts (chapter, day, module...)
+  sectionCountHint: number;
+  worksheetHint: boolean; // whether worksheet-style fill-in blocks make sense
+};
+
+export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
+  ebook: {
+    id: "ebook",
+    label: "Ebook",
+    shortLabel: "Ebook",
+    description:
+      "A polished, narrative digital book that teaches or tells — ready to sell or give away.",
+    accent: "#4f46e5",
+    accentSoft: "#eef2ff",
+    emoji: "\u{1F4D8}",
+    sectionNoun: "chapter",
+    sectionCountHint: 6,
+    worksheetHint: false,
+  },
+  guide: {
+    id: "guide",
+    label: "Guide",
+    shortLabel: "Guide",
+    description:
+      "A focused, step-by-step how-to guide that walks the reader from problem to result.",
+    accent: "#0d9488",
+    accentSoft: "#f0fdfa",
+    emoji: "\u{1F9ED}",
+    sectionNoun: "step",
+    sectionCountHint: 7,
+    worksheetHint: false,
+  },
+  planner: {
+    id: "planner",
+    label: "Planner",
+    shortLabel: "Planner",
+    description:
+      "A structured planner with fill-in prompts, checklists, and tracking pages.",
+    accent: "#db2777",
+    accentSoft: "#fdf2f8",
+    emoji: "\u{1F5D3}\u{FE0F}",
+    sectionNoun: "section",
+    sectionCountHint: 6,
+    worksheetHint: true,
+  },
+  workbook: {
+    id: "workbook",
+    label: "Workbook",
+    shortLabel: "Workbook",
+    description:
+      "An interactive workbook with exercises and reflection prompts for hands-on learning.",
+    accent: "#ea580c",
+    accentSoft: "#fff7ed",
+    emoji: "\u{1F4DD}",
+    sectionNoun: "exercise",
+    sectionCountHint: 6,
+    worksheetHint: true,
+  },
+  template: {
+    id: "template",
+    label: "Template",
+    shortLabel: "Template",
+    description:
+      "A ready-to-use, fill-in-the-blank template pack the reader can put to work immediately.",
+    accent: "#7c3aed",
+    accentSoft: "#f5f3ff",
+    emoji: "\u{1F4CB}",
+    sectionNoun: "module",
+    sectionCountHint: 5,
+    worksheetHint: true,
+  },
+};
+
+export const PRODUCT_TYPE_LIST = Object.values(PRODUCT_TYPES);
+
+export function isProductType(value: string): value is ProductTypeId {
+  return Object.prototype.hasOwnProperty.call(PRODUCT_TYPES, value);
+}
+
+// Shared content shape produced by the AI (or mock) generator and consumed
+// by the HTML/PDF renderer, regardless of product type.
+export type ProductSection = {
+  heading: string;
+  body: string;
+  bullets?: string[];
+  worksheet?: string[];
+};
+
+export type ProductContent = {
+  title: string;
+  subtitle: string;
+  tagline: string;
+  introduction: string;
+  sections: ProductSection[];
+  conclusion: string;
+  callToAction: string;
+};

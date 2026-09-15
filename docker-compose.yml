@@ -1,0 +1,15 @@
+services:
+  productforge-ai:
+    build: .
+    container_name: productforge-ai
+    restart: unless-stopped
+    ports:
+      # host_port:container_port — change the left side if 3001 is taken
+      # on your server. The app inside the container always listens on 3000.
+      - "3001:3000"
+    env_file:
+      - .env
+    volumes:
+      # Keeps the SQLite database and generated PDFs on the host, so they
+      # survive `docker compose up --build` rebuilds.
+      - ./data:/app/data
