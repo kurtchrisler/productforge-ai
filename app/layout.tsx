@@ -3,9 +3,9 @@ import Navbar from "@/components/Navbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ProductForge AI — Turn any idea into a digital product",
+  title: "ProductGenie AI — Turn any idea into a digital product",
   description:
-    "Describe an idea and ProductForge AI generates a ready-to-sell ebook, guide, planner, workbook, or template — complete with a downloadable PDF.",
+    "Describe an idea and ProductGenie AI generates a ready-to-sell ebook, guide, planner, workbook, or template — complete with a downloadable PDF.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

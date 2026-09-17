@@ -1,4 +1,4 @@
-# Deploying ProductForge AI to your VPS
+# Deploying ProductGenie AI to your VPS
 
 This gets the app running live on your server via Docker, reachable at
 `http://YOUR_SERVER_IP:3001`, without touching your existing WordPress

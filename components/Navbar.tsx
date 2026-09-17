@@ -10,9 +10,9 @@ export default async function Navbar() {
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white text-sm font-bold">
-            PF
+            PG
           </span>
-          ProductForge <span className="text-indigo-600">AI</span>
+          ProductGenie <span className="text-indigo-600">AI</span>
         </Link>
 
         <nav className="flex items-center gap-3 text-sm">

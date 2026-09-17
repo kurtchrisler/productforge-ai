@@ -40,7 +40,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm bg-white border border-zinc-200 rounded-xl p-8 shadow-sm">
         <h1 className="text-xl font-bold text-zinc-900">Welcome back</h1>
         <p className="text-sm text-zinc-500 mt-1 mb-6">
-          Log in to your ProductForge AI account.
+          Log in to your ProductGenie AI account.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

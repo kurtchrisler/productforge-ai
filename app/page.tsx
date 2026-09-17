@@ -20,7 +20,7 @@ export default async function Home() {
             digital product
           </h1>
           <p className="mt-6 text-lg text-zinc-600 max-w-2xl mx-auto">
-            Describe your idea in a sentence. ProductForge AI writes it,
+            Describe your idea in a sentence. ProductGenie AI writes it,
             structures it, and typesets it into a downloadable PDF —
             ebook, guide, planner, workbook, or template — in minutes.
           </p>
@@ -117,7 +117,7 @@ export default async function Home() {
       </section>
 
       <footer className="border-t border-zinc-200 py-8 text-center text-sm text-zinc-500">
-        ProductForge AI
+        ProductGenie AI
       </footer>
     </div>
   );

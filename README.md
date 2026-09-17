@@ -1,4 +1,4 @@
-# ProductForge AI
+# ProductGenie AI
 
 Turn any idea into a ready-to-launch digital product. Describe an idea, pick
 a format (ebook, guide, planner, workbook, or template), and get a fully

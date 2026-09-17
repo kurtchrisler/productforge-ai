@@ -40,7 +40,7 @@ export default function NewProductPage() {
         Create a new product
       </h1>
       <p className="text-zinc-500 text-sm mt-1 mb-8">
-        Describe your idea, choose a format, and ProductForge AI will write
+        Describe your idea, choose a format, and ProductGenie AI will write
         and typeset a complete, downloadable product.
       </p>
 
