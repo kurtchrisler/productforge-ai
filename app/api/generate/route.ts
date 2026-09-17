@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, Product } from "@/lib/db";
+import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { isProductType } from "@/lib/productTypes";
 import { generateProductContent } from "@/lib/ai";
@@ -7,6 +7,7 @@ import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
 
 export async function POST(req: NextRequest) {
+  const db = getDb();
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  const db = getDb();
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });

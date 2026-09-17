@@ -2,30 +2,28 @@ import { DatabaseSync } from "node:sqlite";
 import path from "path";
 import fs from "fs";
 
-const dataDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const dbPath = path.join(dataDir, "app.db");
-
 declare global {
   var __afdb: DatabaseSync | undefined;
 }
 
-// Uses Node's built-in SQLite (available without any native build step —
-// no node-gyp, no Python, no Visual Studio Build Tools required). This
-// avoids the native-compile problems packages like better-sqlite3 run into
-// on machines without a C++ toolchain configured.
-export const db: DatabaseSync = global.__afdb ?? new DatabaseSync(dbPath);
-if (process.env.NODE_ENV !== "production") {
-  global.__afdb = db;
-}
+function createDb(): DatabaseSync {
+  const dataDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  const dbPath = path.join(dataDir, "app.db");
 
-db.exec("PRAGMA journal_mode = WAL");
-db.exec("PRAGMA foreign_keys = ON");
+  const database = new DatabaseSync(dbPath);
 
-db.exec(`
+  // busy_timeout makes concurrent opens/writes wait and retry instead of
+  // immediately failing with "database is locked" — belt-and-suspenders
+  // alongside lazy init below, since Next can still spin up more than one
+  // server-side runtime in dev/production.
+  database.exec("PRAGMA busy_timeout = 5000");
+  database.exec("PRAGMA journal_mode = WAL");
+  database.exec("PRAGMA foreign_keys = ON");
+
+  database.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE NOT NULL,
@@ -56,6 +54,28 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL
 );
 `);
+
+  return database;
+}
+
+// Uses Node's built-in SQLite (available without any native build step —
+// no node-gyp, no Python, no Visual Studio Build Tools required).
+//
+// The connection is created lazily, on first actual call to getDb(), NOT
+// at module import time. This matters: Next.js evaluates route modules
+// (including their imports) across several parallel worker processes
+// during `next build`'s page-data-collection step, purely for static
+// analysis — it never calls into the route handlers themselves. Opening
+// and initializing the SQLite file as a top-level side effect meant every
+// one of those workers raced to open/write the same file at once, which
+// SQLite (correctly) rejected with "database is locked". Deferring the
+// open until a request handler actually runs avoids the race entirely.
+export function getDb(): DatabaseSync {
+  if (!global.__afdb) {
+    global.__afdb = createDb();
+  }
+  return global.__afdb;
+}
 
 export type User = {
   id: number;

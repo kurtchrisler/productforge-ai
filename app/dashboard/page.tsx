@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { db, Product } from "@/lib/db";
+import { getDb, Product } from "@/lib/db";
 import { PRODUCT_TYPES, ProductTypeId } from "@/lib/productTypes";
 import DeleteProductButton from "@/components/DeleteProductButton";
 
@@ -30,6 +30,7 @@ function StatusBadge({ status }: { status: Product["status"] }) {
 }
 
 export default async function DashboardPage() {
+  const db = getDb();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

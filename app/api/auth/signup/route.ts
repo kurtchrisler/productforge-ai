@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { hashPassword, createSession, setSessionCookie } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const db = getDb();
     const { email, password, name } = await req.json();
 
     if (!email || typeof email !== "string" || !email.includes("@")) {

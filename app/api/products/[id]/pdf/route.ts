@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, Product } from "@/lib/db";
+import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
@@ -8,6 +8,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const db = getDb();
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });

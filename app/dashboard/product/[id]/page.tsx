@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { db, Product } from "@/lib/db";
+import { getDb, Product } from "@/lib/db";
 import { PRODUCT_TYPES, ProductTypeId } from "@/lib/productTypes";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,7 @@ export default async function ProductPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const db = getDb();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
