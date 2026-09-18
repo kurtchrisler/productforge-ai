@@ -82,9 +82,8 @@ export default function SettingsPage() {
       <div className="bg-white border border-zinc-200 rounded-xl p-6">
         <h2 className="font-semibold text-zinc-900">OpenAI API key</h2>
         <p className="text-sm text-zinc-500 mt-1.5 leading-relaxed">
-          ProductGenie AI generates content using your own OpenAI account, so
-          usage is billed directly to you at OpenAI&apos;s standard rates —
-          not marked up or routed through us. You can create a key at{" "}
+          ProductGenie AI generates content using the OpenAI API. You can
+          create a key at{" "}
           <a
             href="https://platform.openai.com/api-keys"
             target="_blank"
