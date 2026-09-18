@@ -54,13 +54,21 @@ export default async function ProductPage({
         </div>
 
         {product.status === "ready" && product.content_json && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
             <a
               href={`/api/products/${product.id}/pdf`}
               className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
             >
               Download PDF
             </a>
+            {product.cover_image_path && (
+              <a
+                href={`/api/products/${product.id}/cover`}
+                className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
+              >
+                Download cover
+              </a>
+            )}
             <ProductEditor
               productId={product.id}
               initialContent={JSON.parse(product.content_json) as ProductContent}

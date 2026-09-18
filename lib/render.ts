@@ -16,14 +16,9 @@ export function renderProductHtml(
   const accent = meta.accent;
   const accentSoft = meta.accentSoft;
 
-  // With AI cover art, the title/subtitle/callouts are already baked into
-  // the generated image itself, so it's used as-is, full-bleed, with no
-  // overlay — darkening it further would muddy the design the model made.
   // Without a cover image (demo mode, or generation failed): fall back to
   // the plain brand-accent gradient with the real HTML text on top.
-  const coverBackground = coverImageDataUri
-    ? `url('${coverImageDataUri}')`
-    : `linear-gradient(160deg, ${accent} 0%, #111827 120%)`;
+  const coverGradient = `linear-gradient(160deg, ${accent} 0%, #111827 120%)`;
 
   const sectionsHtml = content.sections
     .map((section, i) => {
@@ -95,14 +90,30 @@ export function renderProductHtml(
     position: relative;
   }
   .cover {
-    background: ${coverBackground};
-    background-size: cover;
-    background-position: center;
+    background: ${coverGradient};
     color: #ffffff;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
+  }
+  .cover.cover-image {
+    /* The AI cover art is a fixed 2:3 portrait, which doesn't exactly match
+       the 8.5x11 page — showing it with object-fit:contain (rather than
+       cropping to cover the page) guarantees nothing on the cover, like
+       the title, ever gets cut off. The dark fill blends with the AI
+       image's own dark background so any letterboxing is barely visible. */
+    padding: 0;
+    background: #0b0f19;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
   }
   .cover-badge {
     display: inline-block;
@@ -226,10 +237,10 @@ export function renderProductHtml(
 </head>
 <body>
 
-  <div class="page cover">
+  <div class="page cover${coverImageDataUri ? " cover-image" : ""}">
     ${
       coverImageDataUri
-        ? "" // Title/subtitle/tagline are already rendered into the AI cover art itself.
+        ? `<img class="cover-img" src="${coverImageDataUri}" alt="${esc(content.title)}" />`
         : `<div class="cover-badge">${esc(meta.label)}</div>
     <h1>${esc(content.title)}</h1>
     <div class="subtitle">${esc(content.subtitle)}</div>
