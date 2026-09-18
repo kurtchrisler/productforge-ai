@@ -5,6 +5,7 @@ import { isProductType } from "@/lib/productTypes";
 import { generateProductContent } from "@/lib/ai";
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
+import { decryptSecret } from "@/lib/crypto";
 
 export async function POST(req: NextRequest) {
   const db = getDb();
@@ -35,10 +36,20 @@ export async function POST(req: NextRequest) {
     .run(user.id, idea.trim(), productType);
   const productId = Number(insert.lastInsertRowid);
 
+  let userApiKey: string | null = null;
+  if (user.openai_api_key) {
+    try {
+      userApiKey = decryptSecret(user.openai_api_key);
+    } catch (err) {
+      console.error("Failed to decrypt stored OpenAI key:", err);
+    }
+  }
+
   try {
     const { content, mode } = await generateProductContent(
       idea.trim(),
-      productType
+      productType,
+      userApiKey
     );
     const html = renderProductHtml(content, productType);
     await renderHtmlToPdf(html, productId);

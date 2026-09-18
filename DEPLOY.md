@@ -48,8 +48,12 @@ effect, then re-check `docker --version`.
 git clone https://github.com/YOUR_USERNAME/productforge-ai.git
 cd productforge-ai
 cp .env.example .env
-nano .env   # optional: add OPENAI_API_KEY for real AI content instead of demo mode
+nano .env   # required: set ENCRYPTION_KEY (e.g. output of `openssl rand -hex 32`)
 ```
+
+Customers add their own OpenAI API key in-app under Settings, so generation
+is billed to them, not to you — nothing to add here for that. `ENCRYPTION_KEY`
+is just the server-side secret used to encrypt those saved keys at rest.
 
 ## 4. Build and start
 

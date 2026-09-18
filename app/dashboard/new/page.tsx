@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PRODUCT_TYPE_LIST, ProductTypeId } from "@/lib/productTypes";
 
@@ -10,6 +11,14 @@ export default function NewProductPage() {
   const [productType, setProductType] = useState<ProductTypeId>("ebook");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/openai-key")
+      .then((res) => res.json())
+      .then((data) => setHasKey(Boolean(data.hasKey)))
+      .catch(() => setHasKey(null));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,6 +52,21 @@ export default function NewProductPage() {
         Describe your idea, choose a format, and ProductGenie AI will write
         and typeset a complete, downloadable product.
       </p>
+
+      {hasKey === false && (
+        <div className="mb-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between gap-4">
+          <span>
+            You haven&apos;t added an OpenAI API key yet, so products will be
+            generated as placeholder demo content.
+          </span>
+          <Link
+            href="/dashboard/settings"
+            className="whitespace-nowrap font-semibold hover:underline"
+          >
+            Add your key →
+          </Link>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-8">
         <div>

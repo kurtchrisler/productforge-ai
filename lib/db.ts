@@ -55,6 +55,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 `);
 
+  // Migration: add openai_api_key to users if it doesn't exist yet (this
+  // table already existed in production before this column was introduced,
+  // so CREATE TABLE IF NOT EXISTS above won't add it for existing databases).
+  const userColumns = database
+    .prepare(`PRAGMA table_info(users)`)
+    .all() as { name: string }[];
+  if (!userColumns.some((c) => c.name === "openai_api_key")) {
+    database.exec(`ALTER TABLE users ADD COLUMN openai_api_key TEXT`);
+  }
+
   return database;
 }
 
@@ -82,6 +92,7 @@ export type User = {
   email: string;
   password_hash: string;
   name: string | null;
+  openai_api_key: string | null;
   created_at: string;
 };
 

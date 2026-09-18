@@ -30,6 +30,12 @@ export default async function Navbar() {
               >
                 New product
               </Link>
+              <Link
+                href="/dashboard/settings"
+                className="px-3 py-2 rounded-md text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 transition"
+              >
+                Settings
+              </Link>
               <LogoutButton />
             </>
           ) : (

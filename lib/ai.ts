@@ -5,8 +5,10 @@ import {
   PRODUCT_TYPES,
 } from "./productTypes";
 
-function getClient(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY;
+function getClient(apiKey: string | null | undefined): OpenAI | null {
+  // Intentionally does NOT fall back to a server-wide env var: generation
+  // always runs on the requesting customer's own OpenAI key, never ours.
+  // No key on file for that user -> mock content (see buildMockContent).
   if (!apiKey) return null;
   return new OpenAI({ apiKey });
 }
@@ -83,9 +85,10 @@ function safeParseContent(raw: string): ProductContent {
 
 export async function generateProductContent(
   idea: string,
-  type: ProductTypeId
+  type: ProductTypeId,
+  apiKey: string | null | undefined
 ): Promise<{ content: ProductContent; mode: "ai" | "mock" }> {
-  const client = getClient();
+  const client = getClient(apiKey);
 
   if (client) {
     try {
@@ -108,11 +111,15 @@ export async function generateProductContent(
       if (!raw) throw new Error("Empty response from AI model.");
       return { content: safeParseContent(raw), mode: "ai" };
     } catch (err) {
-      console.error(
-        "AI generation failed, falling back to mock content:",
-        err
+      // The user supplied their own key, so a failure here is theirs to
+      // know about (bad key, no quota, etc.) — don't paper over it with
+      // silent mock content, which would look like a real generation.
+      console.error("AI generation failed with user-supplied key:", err);
+      const message =
+        err instanceof Error ? err.message : "AI generation failed.";
+      throw new Error(
+        `Your OpenAI API key was rejected or the request failed: ${message}. Check your key in Settings.`
       );
-      return { content: buildMockContent(idea, type), mode: "mock" };
     }
   }
 
