@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { isProductType, isProductLength } from "@/lib/productTypes";
-import { generateProductContent } from "@/lib/ai";
+import { generateProductContent, generateCoverImage } from "@/lib/ai";
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import { decryptSecret } from "@/lib/crypto";
+import { saveCoverImage, readCoverImageDataUri } from "@/lib/cover";
 
 export async function POST(req: NextRequest) {
   const db = getDb();
@@ -54,18 +55,38 @@ export async function POST(req: NextRequest) {
       resolvedLength,
       userApiKey
     );
-    const html = renderProductHtml(content, productType);
+
+    // Cover art costs real money and only works with the customer's own
+    // OpenAI key, so only attempt it when generation actually ran on a real
+    // key (mode === "ai") — never in demo/mock mode. A failure here should
+    // never take down the whole product, so it's caught independently.
+    let coverImagePath: string | null = null;
+    if (mode === "ai") {
+      const coverBuffer = await generateCoverImage(
+        idea.trim(),
+        productType,
+        content,
+        userApiKey
+      );
+      if (coverBuffer) {
+        coverImagePath = saveCoverImage(coverBuffer, productId);
+      }
+    }
+    const coverImageDataUri = readCoverImageDataUri(coverImagePath);
+
+    const html = renderProductHtml(content, productType, coverImageDataUri);
     await renderHtmlToPdf(html, productId);
 
     db.prepare(
       `UPDATE products
-       SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, updated_at = datetime('now')
+       SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, cover_image_path = ?, updated_at = datetime('now')
        WHERE id = ?`
     ).run(
       content.title,
       JSON.stringify(content),
       html,
       `${productId}.pdf`,
+      coverImagePath,
       productId
     );
 

@@ -16,6 +16,14 @@ function getClient(apiKey: string | null | undefined): OpenAI | null {
   return new OpenAI({ apiKey });
 }
 
+function maxTokensFor(length: ProductLength): number {
+  // Generous budgets so long, multi-paragraph JSON output never gets cut off
+  // mid-document (a truncated response fails JSON parsing entirely).
+  if (length === "long") return 15000;
+  if (length === "medium") return 7000;
+  return 3500;
+}
+
 function buildPrompt(
   idea: string,
   type: ProductTypeId,
@@ -25,27 +33,24 @@ function buildPrompt(
   const lengthMeta = PRODUCT_LENGTHS[length];
   const sectionCount = resolveSectionCount(type, length);
 
-  return `You are a senior digital-product creator. Generate the full content for a ${meta.label.toLowerCase()} based on this idea from the customer:
+  return `You are a senior digital-product creator and professional nonfiction writer. Generate the FULL, complete, publication-ready content for a ${meta.label.toLowerCase()} based on this idea from the customer:
 
 """
 ${idea}
 """
 
+This needs to read like a real, finished ${meta.label.toLowerCase()} a customer would pay for — specific, concrete, and genuinely useful — never a thin outline, never generic filler, and never placeholder text like "insert example here." Write with real expertise: concrete examples, specific numbers or scenarios where relevant, and actionable advice a reader could follow immediately.
+
 Format requirements:
-- Produce ${sectionCount} ${meta.sectionNoun}s (sections).
-- Each section needs a short punchy "heading" and a "body" of ${lengthMeta.sentenceRange} sentences of real, useful, specific content (no filler, no placeholders like "insert example here").
-${
-  lengthMeta.multiParagraph
-    ? `- This is a "${lengthMeta.label}" length product, so go in depth: write each section's "body" as 2-3 distinct paragraphs (covering, for example, the concept, then a concrete example or story, then how to apply it), separated by a blank line ("\\n\\n") between paragraphs.`
-    : `- Write each section's "body" as a single paragraph.`
-}
+- Produce exactly ${sectionCount} ${meta.sectionNoun}s (sections). Each one should cover distinct ground — no repeating the same point across sections.
+- Each section needs a short punchy "heading" and a "body" written as ${lengthMeta.paragraphCount} full paragraph(s), each paragraph ${lengthMeta.sentenceRange} sentences of substantive, specific content. Separate paragraphs within "body" with a blank line ("\\n\\n").
 - Where useful, add a "bullets" array of ${lengthMeta.bulletRange} short actionable bullet points for that section.
 ${
   meta.worksheetHint
     ? `- Because this is a ${meta.label.toLowerCase()}, most sections should also include a "worksheet" array of 3-6 short fill-in-the-blank prompts or tracking lines the reader will physically write answers next to (e.g. "Today's top priority: ____").`
     : `- Only include a "worksheet" array if genuinely useful; otherwise omit it.`
 }
-- Write a compelling "title", a one-line "subtitle", a short punchy "tagline" for the cover, a 2-3 sentence "introduction", a 2-3 sentence "conclusion", and a short "callToAction" encouraging the reader to take the next step.
+- Write a compelling "title", a one-line "subtitle", a short punchy "tagline" for the cover, a substantive "introduction" (${lengthMeta.introSentenceRange} sentences) that sets up exactly what the reader will get and why it matters, a "conclusion" (${lengthMeta.introSentenceRange} sentences) that ties it together, and a short "callToAction" encouraging the reader to take the next step.
 
 Respond with ONLY a single JSON object with this exact shape, no markdown fences, no commentary:
 {
@@ -121,7 +126,7 @@ export async function generateProductContent(
         ],
         response_format: { type: "json_object" },
         temperature: 0.8,
-        max_tokens: length === "long" ? 8000 : undefined,
+        max_tokens: maxTokensFor(length),
       });
 
       const raw = completion.choices[0]?.message?.content;
@@ -143,6 +148,53 @@ export async function generateProductContent(
   return { content: buildMockContent(idea, type, length), mode: "mock" };
 }
 
+// Generates AI cover art for the product using the customer's own OpenAI
+// key. Returns the raw PNG bytes, or null if there's no key (demo mode) or
+// the image request fails for any reason — a missing cover should never
+// fail the whole product generation, so callers just fall back to the
+// existing gradient-only cover.
+export async function generateCoverImage(
+  idea: string,
+  type: ProductTypeId,
+  content: ProductContent,
+  apiKey: string | null | undefined
+): Promise<Buffer | null> {
+  const client = getClient(apiKey);
+  if (!client) return null;
+
+  const meta = PRODUCT_TYPES[type];
+  const prompt = `Create a professional, commercial-quality cover illustration for a digital ${meta.label.toLowerCase()} titled "${content.title}".
+Subject / theme: ${idea}
+${content.tagline ? `Tagline: "${content.tagline}"` : ""}
+
+Style: modern, polished, eye-catching cover art — the kind you'd see on a bestselling ebook, online course, or premium digital guide. Use imagery, color, and composition that fits the topic and feels professional, not generic stock art.
+
+Absolutely no text, words, letters, numbers, or typography anywhere in the image — this is pure background artwork; the real title will be overlaid separately as live text. Keep the lower portion of the image visually calm enough that white text can be legibly placed over it.`;
+
+  try {
+    const response = await client.images.generate({
+      model: process.env.OPENAI_IMAGE_MODEL || "dall-e-3",
+      prompt,
+      n: 1,
+      size: "1024x1792",
+      quality:
+        (process.env.OPENAI_IMAGE_QUALITY as "standard" | "hd" | undefined) ||
+        "standard",
+      style:
+        (process.env.OPENAI_IMAGE_STYLE as "vivid" | "natural" | undefined) ||
+        "vivid",
+      response_format: "b64_json",
+    });
+
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) return null;
+    return Buffer.from(b64, "base64");
+  } catch (err) {
+    console.error("Cover image generation failed (continuing without one):", err);
+    return null;
+  }
+}
+
 // Deterministic, no-API-key-required generator so the product is fully
 // demo-able before anyone wires up an OpenAI key.
 function buildMockContent(
@@ -155,6 +207,7 @@ function buildMockContent(
   const sectionCount = resolveSectionCount(type, length);
   const topic = idea.trim() || "your idea";
   const capitalized = topic.charAt(0).toUpperCase() + topic.slice(1);
+  const paragraphTarget = lengthMeta.paragraphCount === "1" ? 1 : lengthMeta.paragraphCount === "2" ? 2 : 3;
 
   const titlePool = [
     "Getting clear on the goal",
@@ -175,13 +228,11 @@ function buildMockContent(
   );
 
   const sections = sectionTitles.map((heading, i) => {
-    const paragraph1 = `This ${meta.sectionNoun} walks through "${heading.toLowerCase()}" as it applies to ${topic}. It breaks the idea down into plain language, gives the reader a clear next action, and connects back to the bigger goal of ${topic}.`;
-    const paragraph2 = `In practice, this means starting small: pick one concrete change related to ${topic}, try it this week, and notice what shifts. The goal isn't perfection — it's steady, visible progress you can build on.`;
-    const paragraph3 = `Revisit this ${meta.sectionNoun} whenever ${topic} starts to feel overwhelming again; the same core idea applies whether you're just starting out or refining something that's already working.`;
-
-    const body = lengthMeta.multiParagraph
-      ? [paragraph1, paragraph2, paragraph3].join("\n\n")
-      : paragraph1;
+    const paragraphs = [
+      `This ${meta.sectionNoun} walks through "${heading.toLowerCase()}" as it applies to ${topic}. It breaks the idea down into plain language, gives the reader a clear next action, and connects back to the bigger goal of ${topic}.`,
+      `In practice, this means starting small: pick one concrete change related to ${topic}, try it this week, and notice what shifts. The goal isn't perfection — it's steady, visible progress you can build on.`,
+      `Revisit this ${meta.sectionNoun} whenever ${topic} starts to feel overwhelming again; the same core idea applies whether you're just starting out or refining something that's already working.`,
+    ].slice(0, paragraphTarget);
 
     const bulletPool = [
       `Identify where you are today with ${topic}`,
@@ -191,14 +242,15 @@ function buildMockContent(
       `Share your progress with someone else`,
       `Set a reminder to revisit this in a week`,
       `Note one thing you'd do differently next time`,
+      `Ask someone you trust for honest feedback`,
     ];
-    const bulletCount = lengthMeta.id === "short" ? 3 : lengthMeta.id === "long" ? 6 : 4;
+    const bulletCount = lengthMeta.id === "short" ? 3 : lengthMeta.id === "long" ? 7 : 5;
 
     return {
       heading: `${meta.sectionNoun.charAt(0).toUpperCase() + meta.sectionNoun.slice(1)} ${
         i + 1
       }: ${heading}`,
-      body,
+      body: paragraphs.join("\n\n"),
       bullets: bulletPool.slice(0, bulletCount),
       worksheet: meta.worksheetHint
         ? [
@@ -214,7 +266,7 @@ function buildMockContent(
     title: `${capitalized}: The Complete ${meta.label}`,
     subtitle: `A practical ${meta.label.toLowerCase()} to help you go from idea to result with ${topic}.`,
     tagline: `Everything you need to get started with ${topic}, in one place.`,
-    introduction: `Welcome! This ${meta.label.toLowerCase()} was built around one idea: ${topic}. Instead of overwhelming you with theory, each ${meta.sectionNoun} gives you something concrete to do next. This is demo content generated without an OpenAI key connected — add your own key in Settings to generate real, idea-specific content instead.`,
+    introduction: `Welcome! This ${meta.label.toLowerCase()} was built around one idea: ${topic}. Instead of overwhelming you with theory, each ${meta.sectionNoun} gives you something concrete to do next. This is demo content generated without an OpenAI key connected — add your own key in Settings to generate real, in-depth, idea-specific content (and AI cover art) instead.`,
     sections,
     conclusion: `You now have a complete path through ${topic}. Revisit any ${meta.sectionNoun} whenever you need a refresher, and keep taking the next small step.`,
     callToAction: `Ready for more? Turn your next idea into a ${meta.label.toLowerCase()} in minutes.`,

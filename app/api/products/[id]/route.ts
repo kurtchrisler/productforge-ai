@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { ProductContent, ProductTypeId } from "@/lib/productTypes";
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
+import { readCoverImageDataUri, deleteCoverImage } from "@/lib/cover";
 import fs from "fs";
 import path from "path";
 
@@ -97,7 +98,12 @@ export async function PATCH(
   }
 
   try {
-    const html = renderProductHtml(content, product.product_type as ProductTypeId);
+    const coverImageDataUri = readCoverImageDataUri(product.cover_image_path);
+    const html = renderProductHtml(
+      content,
+      product.product_type as ProductTypeId,
+      coverImageDataUri
+    );
     const productId = Number(id);
     await renderHtmlToPdf(html, productId);
 
@@ -141,6 +147,7 @@ export async function DELETE(
       fs.unlinkSync(filePath);
     }
   }
+  deleteCoverImage(product.cover_image_path);
 
   db.prepare("DELETE FROM products WHERE id = ?").run(id);
   return NextResponse.json({ ok: true });

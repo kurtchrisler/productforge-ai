@@ -9,11 +9,20 @@ function esc(s: string): string {
 
 export function renderProductHtml(
   content: ProductContent,
-  type: ProductTypeId
+  type: ProductTypeId,
+  coverImageDataUri?: string | null
 ): string {
   const meta = PRODUCT_TYPES[type];
   const accent = meta.accent;
   const accentSoft = meta.accentSoft;
+
+  // With AI cover art: a dark gradient scrim over the photo/illustration so
+  // the white cover text stays legible, image itself filling the page.
+  // Without it (demo mode, or image generation failed): the original
+  // brand-accent gradient.
+  const coverBackground = coverImageDataUri
+    ? `linear-gradient(190deg, rgba(17,24,39,0.15) 0%, rgba(17,24,39,0.92) 92%), url('${coverImageDataUri}')`
+    : `linear-gradient(160deg, ${accent} 0%, #111827 120%)`;
 
   const sectionsHtml = content.sections
     .map((section, i) => {
@@ -85,7 +94,9 @@ export function renderProductHtml(
     position: relative;
   }
   .cover {
-    background: linear-gradient(160deg, ${accent} 0%, #111827 120%);
+    background: ${coverBackground};
+    background-size: cover;
+    background-position: center;
     color: #ffffff;
     display: flex;
     flex-direction: column;

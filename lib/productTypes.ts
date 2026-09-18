@@ -100,12 +100,14 @@ export type ProductLengthMeta = {
   description: string;
   // Added to (or subtracted from) a product type's sectionCountHint.
   sectionDelta: number;
-  // Target sentence count per section, given to the AI prompt.
+  // How many paragraphs each section's body should be written as.
+  paragraphCount: string;
+  // Target sentence count PER PARAGRAPH, given to the AI prompt.
   sentenceRange: string;
   // Target bullet count per section, given to the AI prompt.
   bulletRange: string;
-  // Whether sections should be written as multiple paragraphs.
-  multiParagraph: boolean;
+  // Target sentence count for the introduction and conclusion.
+  introSentenceRange: string;
 };
 
 export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
@@ -113,28 +115,31 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     id: "short",
     label: "Short",
     description: "A quick, concise read — fewer sections, brief sections.",
-    sectionDelta: -2,
-    sentenceRange: "2-3",
+    sectionDelta: -1,
+    paragraphCount: "1",
+    sentenceRange: "3-5",
     bulletRange: "2-4",
-    multiParagraph: false,
+    introSentenceRange: "2-3",
   },
   medium: {
     id: "medium",
     label: "Medium",
-    description: "A solid, well-rounded length — the default.",
-    sectionDelta: 0,
+    description: "A solid, well-rounded, genuinely complete product — the default.",
+    sectionDelta: 1,
+    paragraphCount: "2",
     sentenceRange: "4-6",
-    bulletRange: "3-6",
-    multiParagraph: false,
+    bulletRange: "4-6",
+    introSentenceRange: "3-5",
   },
   long: {
     id: "long",
     label: "Long",
-    description: "An in-depth, comprehensive product — more sections, more detail per section.",
-    sectionDelta: 3,
-    sentenceRange: "8-12",
-    bulletRange: "4-7",
-    multiParagraph: true,
+    description: "An in-depth, comprehensive product — more sections, and each one written in real depth.",
+    sectionDelta: 4,
+    paragraphCount: "3-4",
+    sentenceRange: "4-6",
+    bulletRange: "5-8",
+    introSentenceRange: "5-8",
   },
 };
 

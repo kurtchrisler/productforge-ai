@@ -169,8 +169,8 @@ export default function NewProductPage() {
         </button>
         {loading && (
           <p className="text-xs text-zinc-400 -mt-4">
-            This writes the content and typesets a PDF, usually well under a
-            minute.
+            This writes the content, generates cover art, and typesets a PDF —
+            usually 30-90 seconds, longer for Long-length products.
           </p>
         )}
       </form>
