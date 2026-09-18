@@ -38,13 +38,20 @@ export function renderProductHtml(
             </div>`
           : "";
 
+      const bodyParagraphs = section.body
+        .split(/\n\s*\n/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => `<p>${esc(p)}</p>`)
+        .join("");
+
       return `
         <section class="content-section">
           <div class="section-number">${meta.sectionNoun.toUpperCase()} ${
             i + 1
           }</div>
           <h2>${esc(section.heading)}</h2>
-          <p>${esc(section.body)}</p>
+          ${bodyParagraphs}
           ${bullets}
           ${worksheet}
         </section>`;

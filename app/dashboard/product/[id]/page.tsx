@@ -2,7 +2,14 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb, Product } from "@/lib/db";
-import { PRODUCT_TYPES, ProductTypeId } from "@/lib/productTypes";
+import {
+  PRODUCT_TYPES,
+  ProductTypeId,
+  ProductContent,
+  PRODUCT_LENGTHS,
+  ProductLength,
+} from "@/lib/productTypes";
+import ProductEditor from "@/components/ProductEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +30,7 @@ export default async function ProductPage({
   if (!product) notFound();
 
   const meta = PRODUCT_TYPES[product.product_type as ProductTypeId];
+  const lengthMeta = PRODUCT_LENGTHS[(product.length as ProductLength) || "medium"];
 
   return (
     <div className="max-w-5xl mx-auto w-full px-6 py-10">
@@ -37,19 +45,28 @@ export default async function ProductPage({
         <div>
           <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
             {meta?.emoji} {meta?.label ?? product.product_type}
+            {lengthMeta ? ` · ${lengthMeta.label}` : ""}
           </span>
           <h1 className="text-2xl font-bold text-zinc-900 mt-1">
             {product.title || product.idea}
           </h1>
         </div>
 
-        {product.status === "ready" && (
-          <a
-            href={`/api/products/${product.id}/pdf`}
-            className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
-          >
-            Download PDF
-          </a>
+        {product.status === "ready" && product.content_json && (
+          <div className="flex items-center gap-3">
+            <a
+              href={`/api/products/${product.id}/pdf`}
+              className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
+            >
+              Download PDF
+            </a>
+            <ProductEditor
+              productId={product.id}
+              initialContent={JSON.parse(product.content_json) as ProductContent}
+              worksheetHint={meta?.worksheetHint ?? false}
+              sectionNoun={meta?.sectionNoun ?? "section"}
+            />
+          </div>
         )}
       </div>
 

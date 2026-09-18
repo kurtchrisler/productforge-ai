@@ -3,12 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PRODUCT_TYPE_LIST, ProductTypeId } from "@/lib/productTypes";
+import {
+  PRODUCT_TYPE_LIST,
+  ProductTypeId,
+  PRODUCT_LENGTH_LIST,
+  ProductLength,
+} from "@/lib/productTypes";
 
 export default function NewProductPage() {
   const router = useRouter();
   const [idea, setIdea] = useState("");
   const [productType, setProductType] = useState<ProductTypeId>("ebook");
+  const [length, setLength] = useState<ProductLength>("medium");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasKey, setHasKey] = useState<boolean | null>(null);
@@ -28,7 +34,7 @@ export default function NewProductPage() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea, productType }),
+        body: JSON.stringify({ idea, productType, length }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -112,6 +118,36 @@ export default function NewProductPage() {
                   </div>
                   <div className="text-xs text-zinc-500 mt-1 leading-snug">
                     {pt.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-sm font-semibold text-zinc-800">
+            Length
+          </label>
+          <div className="mt-2 grid grid-cols-3 gap-3">
+            {PRODUCT_LENGTH_LIST.map((l) => {
+              const selected = length === l.id;
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => setLength(l.id)}
+                  className={`rounded-lg border p-3 text-left transition ${
+                    selected
+                      ? "border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50"
+                      : "border-zinc-200 bg-white hover:border-zinc-300"
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-zinc-900">
+                    {l.label}
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-1 leading-snug">
+                    {l.description}
                   </div>
                 </button>
               );

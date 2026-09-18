@@ -92,6 +92,67 @@ export function isProductType(value: string): value is ProductTypeId {
   return Object.prototype.hasOwnProperty.call(PRODUCT_TYPES, value);
 }
 
+export type ProductLength = "short" | "medium" | "long";
+
+export type ProductLengthMeta = {
+  id: ProductLength;
+  label: string;
+  description: string;
+  // Added to (or subtracted from) a product type's sectionCountHint.
+  sectionDelta: number;
+  // Target sentence count per section, given to the AI prompt.
+  sentenceRange: string;
+  // Target bullet count per section, given to the AI prompt.
+  bulletRange: string;
+  // Whether sections should be written as multiple paragraphs.
+  multiParagraph: boolean;
+};
+
+export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
+  short: {
+    id: "short",
+    label: "Short",
+    description: "A quick, concise read — fewer sections, brief sections.",
+    sectionDelta: -2,
+    sentenceRange: "2-3",
+    bulletRange: "2-4",
+    multiParagraph: false,
+  },
+  medium: {
+    id: "medium",
+    label: "Medium",
+    description: "A solid, well-rounded length — the default.",
+    sectionDelta: 0,
+    sentenceRange: "4-6",
+    bulletRange: "3-6",
+    multiParagraph: false,
+  },
+  long: {
+    id: "long",
+    label: "Long",
+    description: "An in-depth, comprehensive product — more sections, more detail per section.",
+    sectionDelta: 3,
+    sentenceRange: "8-12",
+    bulletRange: "4-7",
+    multiParagraph: true,
+  },
+};
+
+export const PRODUCT_LENGTH_LIST = Object.values(PRODUCT_LENGTHS);
+
+export function isProductLength(value: string): value is ProductLength {
+  return Object.prototype.hasOwnProperty.call(PRODUCT_LENGTHS, value);
+}
+
+export function resolveSectionCount(
+  type: ProductTypeId,
+  length: ProductLength
+): number {
+  const base = PRODUCT_TYPES[type].sectionCountHint;
+  const delta = PRODUCT_LENGTHS[length].sectionDelta;
+  return Math.min(12, Math.max(3, base + delta));
+}
+
 // Shared content shape produced by the AI (or mock) generator and consumed
 // by the HTML/PDF renderer, regardless of product type.
 export type ProductSection = {

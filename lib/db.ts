@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS products (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   idea TEXT NOT NULL,
   product_type TEXT NOT NULL,
+  length TEXT NOT NULL DEFAULT 'medium',
   title TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   content_json TEXT,
@@ -63,6 +64,17 @@ CREATE TABLE IF NOT EXISTS sessions (
     .all() as { name: string }[];
   if (!userColumns.some((c) => c.name === "openai_api_key")) {
     database.exec(`ALTER TABLE users ADD COLUMN openai_api_key TEXT`);
+  }
+
+  // Migration: add length to products if it doesn't exist yet, for the same
+  // reason as above — existing production rows predate this column.
+  const productColumns = database
+    .prepare(`PRAGMA table_info(products)`)
+    .all() as { name: string }[];
+  if (!productColumns.some((c) => c.name === "length")) {
+    database.exec(
+      `ALTER TABLE products ADD COLUMN length TEXT NOT NULL DEFAULT 'medium'`
+    );
   }
 
   return database;
@@ -101,6 +113,7 @@ export type Product = {
   user_id: number;
   idea: string;
   product_type: string;
+  length: string;
   title: string | null;
   status: "pending" | "generating" | "ready" | "error";
   content_json: string | null;

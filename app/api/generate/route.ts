@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { isProductType } from "@/lib/productTypes";
+import { isProductType, isProductLength } from "@/lib/productTypes";
 import { generateProductContent } from "@/lib/ai";
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
-  const { idea, productType } = await req.json().catch(() => ({}));
+  const { idea, productType, length } = await req.json().catch(() => ({}));
 
   if (!idea || typeof idea !== "string" || idea.trim().length < 5) {
     return NextResponse.json(
@@ -28,12 +28,14 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  const resolvedLength =
+    typeof length === "string" && isProductLength(length) ? length : "medium";
 
   const insert = db
     .prepare(
-      `INSERT INTO products (user_id, idea, product_type, status) VALUES (?, ?, ?, 'generating')`
+      `INSERT INTO products (user_id, idea, product_type, length, status) VALUES (?, ?, ?, ?, 'generating')`
     )
-    .run(user.id, idea.trim(), productType);
+    .run(user.id, idea.trim(), productType, resolvedLength);
   const productId = Number(insert.lastInsertRowid);
 
   let userApiKey: string | null = null;
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
     const { content, mode } = await generateProductContent(
       idea.trim(),
       productType,
+      resolvedLength,
       userApiKey
     );
     const html = renderProductHtml(content, productType);
