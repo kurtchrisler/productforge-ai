@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { isProductType, isProductLength } from "@/lib/productTypes";
-import { generateProductContent, generateCoverImage } from "@/lib/ai";
+import { generateProductContent, generateAndSaveCover } from "@/lib/ai";
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import { decryptSecret } from "@/lib/crypto";
-import { saveCoverImage, readCoverImageDataUri } from "@/lib/cover";
+import { readCoverImageDataUri } from "@/lib/cover";
 
 export async function POST(req: NextRequest) {
   const db = getDb();
@@ -59,18 +59,20 @@ export async function POST(req: NextRequest) {
     // Cover art costs real money and only works with the customer's own
     // OpenAI key, so only attempt it when generation actually ran on a real
     // key (mode === "ai") — never in demo/mock mode. A failure here should
-    // never take down the whole product, so it's caught independently.
+    // never take down the whole product, so it's caught independently and
+    // recorded for the "regenerate cover" retry button to explain.
     let coverImagePath: string | null = null;
+    let coverError: string | null = null;
     if (mode === "ai") {
-      const coverBuffer = await generateCoverImage(
+      const cover = await generateAndSaveCover(
         idea.trim(),
         productType,
         content,
-        userApiKey
+        userApiKey,
+        productId
       );
-      if (coverBuffer) {
-        coverImagePath = saveCoverImage(coverBuffer, productId);
-      }
+      coverImagePath = cover.path;
+      coverError = cover.error;
     }
     const coverImageDataUri = readCoverImageDataUri(coverImagePath);
 
@@ -79,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     db.prepare(
       `UPDATE products
-       SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, cover_image_path = ?, updated_at = datetime('now')
+       SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
        WHERE id = ?`
     ).run(
       content.title,
@@ -87,6 +89,7 @@ export async function POST(req: NextRequest) {
       html,
       `${productId}.pdf`,
       coverImagePath,
+      coverError,
       productId
     );
 

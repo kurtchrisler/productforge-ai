@@ -104,6 +104,10 @@ export type ProductLengthMeta = {
   paragraphCount: string;
   // Target sentence count PER PARAGRAPH, given to the AI prompt.
   sentenceRange: string;
+  // Target WORD count per section body — this is what actually moves the
+  // model to write real depth; sentence/paragraph counts alone are too easy
+  // for it to satisfy with short sentences.
+  wordTarget: string;
   // Target bullet count per section, given to the AI prompt.
   bulletRange: string;
   // Target sentence count for the introduction and conclusion.
@@ -116,30 +120,33 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     label: "Short",
     description: "A quick, concise read — fewer sections, brief sections.",
     sectionDelta: -1,
-    paragraphCount: "1",
+    paragraphCount: "2",
     sentenceRange: "3-5",
-    bulletRange: "2-4",
-    introSentenceRange: "2-3",
+    wordTarget: "150-250",
+    bulletRange: "3-5",
+    introSentenceRange: "3-4",
   },
   medium: {
     id: "medium",
     label: "Medium",
     description: "A solid, well-rounded, genuinely complete product — the default.",
-    sectionDelta: 1,
-    paragraphCount: "2",
-    sentenceRange: "4-6",
-    bulletRange: "4-6",
-    introSentenceRange: "3-5",
+    sectionDelta: 2,
+    paragraphCount: "3",
+    sentenceRange: "5-7",
+    wordTarget: "350-550",
+    bulletRange: "4-7",
+    introSentenceRange: "5-7",
   },
   long: {
     id: "long",
     label: "Long",
-    description: "An in-depth, comprehensive product — more sections, and each one written in real depth.",
-    sectionDelta: 4,
-    paragraphCount: "3-4",
-    sentenceRange: "4-6",
+    description: "An in-depth, comprehensive product — more sections, each one written in real depth.",
+    sectionDelta: 5,
+    paragraphCount: "4-5",
+    sentenceRange: "5-8",
+    wordTarget: "650-900",
     bulletRange: "5-8",
-    introSentenceRange: "5-8",
+    introSentenceRange: "8-12",
   },
 };
 

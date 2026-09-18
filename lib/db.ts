@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   if (!productColumns.some((c) => c.name === "cover_image_path")) {
     database.exec(`ALTER TABLE products ADD COLUMN cover_image_path TEXT`);
   }
+  if (!productColumns.some((c) => c.name === "cover_error")) {
+    database.exec(`ALTER TABLE products ADD COLUMN cover_error TEXT`);
+  }
 
   return database;
 }
@@ -118,6 +121,7 @@ export type Product = {
   product_type: string;
   length: string;
   cover_image_path: string | null;
+  cover_error: string | null;
   title: string | null;
   status: "pending" | "generating" | "ready" | "error";
   content_json: string | null;

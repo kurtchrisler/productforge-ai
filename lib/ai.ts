@@ -7,6 +7,7 @@ import {
   PRODUCT_LENGTHS,
   resolveSectionCount,
 } from "./productTypes";
+import { saveCoverImage } from "./cover";
 
 function getClient(apiKey: string | null | undefined): OpenAI | null {
   // Intentionally does NOT fall back to a server-wide env var: generation
@@ -19,9 +20,9 @@ function getClient(apiKey: string | null | undefined): OpenAI | null {
 function maxTokensFor(length: ProductLength): number {
   // Generous budgets so long, multi-paragraph JSON output never gets cut off
   // mid-document (a truncated response fails JSON parsing entirely).
-  if (length === "long") return 15000;
-  if (length === "medium") return 7000;
-  return 3500;
+  if (length === "long") return 16000;
+  if (length === "medium") return 10000;
+  return 5000;
 }
 
 function buildPrompt(
@@ -39,11 +40,11 @@ function buildPrompt(
 ${idea}
 """
 
-This needs to read like a real, finished ${meta.label.toLowerCase()} a customer would pay for — specific, concrete, and genuinely useful — never a thin outline, never generic filler, and never placeholder text like "insert example here." Write with real expertise: concrete examples, specific numbers or scenarios where relevant, and actionable advice a reader could follow immediately.
+This needs to read like a real, finished ${meta.label.toLowerCase()} a customer would pay for — specific, concrete, and genuinely useful — never a thin outline, never generic filler, and never placeholder text like "insert example here." Write with real expertise: concrete examples, specific numbers, scenarios, mini case-studies, or step-by-step detail wherever relevant. Do not pad with repetition — every sentence should add new information.
 
 Format requirements:
 - Produce exactly ${sectionCount} ${meta.sectionNoun}s (sections). Each one should cover distinct ground — no repeating the same point across sections.
-- Each section needs a short punchy "heading" and a "body" written as ${lengthMeta.paragraphCount} full paragraph(s), each paragraph ${lengthMeta.sentenceRange} sentences of substantive, specific content. Separate paragraphs within "body" with a blank line ("\\n\\n").
+- Each section needs a short punchy "heading" and a "body" of roughly ${lengthMeta.wordTarget} words, written as ${lengthMeta.paragraphCount} full paragraphs (each paragraph ${lengthMeta.sentenceRange} sentences). This is a hard target — sections noticeably shorter than ${lengthMeta.wordTarget} words are not acceptable. Separate paragraphs within "body" with a blank line ("\\n\\n").
 - Where useful, add a "bullets" array of ${lengthMeta.bulletRange} short actionable bullet points for that section.
 ${
   meta.worksheetHint
@@ -129,18 +130,28 @@ export async function generateProductContent(
         max_tokens: maxTokensFor(length),
       });
 
-      const raw = completion.choices[0]?.message?.content;
+      const choice = completion.choices[0];
+      if (choice?.finish_reason === "length") {
+        throw new Error(
+          `The response was cut off because it was too long for "${model}"'s output limit. Try a shorter Length setting, or configure a model with a larger output limit (OPENAI_MODEL).`
+        );
+      }
+
+      const raw = choice?.message?.content;
       if (!raw) throw new Error("Empty response from AI model.");
       return { content: safeParseContent(raw), mode: "ai" };
     } catch (err) {
       // The user supplied their own key, so a failure here is theirs to
-      // know about (bad key, no quota, etc.) — don't paper over it with
-      // silent mock content, which would look like a real generation.
+      // know about (bad key, no quota, cut-off response, etc.) — don't
+      // paper over it with silent mock content, which would look like a
+      // real generation.
       console.error("AI generation failed with user-supplied key:", err);
       const message =
         err instanceof Error ? err.message : "AI generation failed.";
       throw new Error(
-        `Your OpenAI API key was rejected or the request failed: ${message}. Check your key in Settings.`
+        message.includes("cut off")
+          ? message
+          : `Your OpenAI API key was rejected or the request failed: ${message}. Check your key in Settings.`
       );
     }
   }
@@ -148,51 +159,105 @@ export async function generateProductContent(
   return { content: buildMockContent(idea, type, length), mode: "mock" };
 }
 
+function isGptImageModel(model: string): boolean {
+  return model.startsWith("gpt-image");
+}
+
 // Generates AI cover art for the product using the customer's own OpenAI
-// key. Returns the raw PNG bytes, or null if there's no key (demo mode) or
-// the image request fails for any reason — a missing cover should never
-// fail the whole product generation, so callers just fall back to the
-// existing gradient-only cover.
+// key, with the title/subtitle/callouts baked directly into the image (not
+// overlaid afterward) — matching a real commercial digital-product cover.
+// Returns the raw PNG bytes on success, or an error message on failure. A
+// missing cover should never fail the whole product generation — callers
+// fall back to the plain gradient cover and can offer a "regenerate" retry.
 export async function generateCoverImage(
   idea: string,
   type: ProductTypeId,
   content: ProductContent,
   apiKey: string | null | undefined
-): Promise<Buffer | null> {
+): Promise<{ buffer: Buffer } | { error: string }> {
   const client = getClient(apiKey);
-  if (!client) return null;
+  if (!client) return { error: "No OpenAI API key on file." };
 
   const meta = PRODUCT_TYPES[type];
-  const prompt = `Create a professional, commercial-quality cover illustration for a digital ${meta.label.toLowerCase()} titled "${content.title}".
-Subject / theme: ${idea}
-${content.tagline ? `Tagline: "${content.tagline}"` : ""}
+  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+  const gptImage = isGptImageModel(model);
 
-Style: modern, polished, eye-catching cover art — the kind you'd see on a bestselling ebook, online course, or premium digital guide. Use imagery, color, and composition that fits the topic and feels professional, not generic stock art.
+  const prompt = `Design a bold, professional, high-converting DIGITAL PRODUCT COVER for a ${meta.label.toLowerCase()} called "${content.title}"${content.subtitle ? ` — "${content.subtitle}"` : ""}.
 
-Absolutely no text, words, letters, numbers, or typography anywhere in the image — this is pure background artwork; the real title will be overlaid separately as live text. Keep the lower portion of the image visually calm enough that white text can be legibly placed over it.`;
+This must be a complete, finished graphic-design cover with ALL text rendered directly in the artwork itself — like the front cover of a bestselling ebook, online course, or premium digital guide sold on a marketplace. Do not leave space for text to be added later; render it now, as part of the image.
+
+Required elements, all baked into the artwork:
+- A dramatic, high-quality photo-realistic or illustrated hero image directly related to: ${idea}
+- The main title "${content.title}" rendered in large, bold, stacked, professional sans-serif typography — a mix of white and one bright accent color to emphasize key words. The title must dominate the composition and be perfectly legible, correctly spelled, and exactly as written above.
+${content.tagline ? `- A short tagline rendered near the top or bottom: "${content.tagline}"` : ""}
+- A row of 3 small icon + short-label callouts relevant to the topic (simple flat icons with a 1-2 word label under each, arranged neatly in a row)
+- A colored accent banner or bar (top or bottom) containing a short supporting line of real, relevant text
+- Color palette: a dark, moody background with one vivid accent color (gold, orange, teal, or red) for energy and contrast
+- Composition: sharp typography, clean icon work, a well-balanced professional layout — the kind of cover that performs well on a top-selling digital product listing
+
+Do not include any watermark, logo, placeholder text, or "Lorem Ipsum" — every word of text in the image must be real, correctly spelled, and relevant to the topic.`;
 
   try {
-    const response = await client.images.generate({
-      model: process.env.OPENAI_IMAGE_MODEL || "dall-e-3",
+    type GenerateParams = OpenAI.Images.ImageGenerateParamsNonStreaming;
+    const params: GenerateParams = {
+      model,
       prompt,
       n: 1,
-      size: "1024x1792",
-      quality:
-        (process.env.OPENAI_IMAGE_QUALITY as "standard" | "hd" | undefined) ||
-        "standard",
-      style:
-        (process.env.OPENAI_IMAGE_STYLE as "vivid" | "natural" | undefined) ||
-        "vivid",
-      response_format: "b64_json",
-    });
+      size: gptImage ? "1024x1536" : "1024x1792",
+      // GPT image models always return b64_json and don't support
+      // response_format/style — only dall-e-3 does.
+      ...(gptImage
+        ? {
+            quality:
+              (process.env.OPENAI_IMAGE_QUALITY as GenerateParams["quality"]) ||
+              "high", // low | medium | high | auto
+          }
+        : {
+            response_format: "b64_json" as const,
+            quality:
+              (process.env.OPENAI_IMAGE_QUALITY as GenerateParams["quality"]) ||
+              "standard", // standard | hd
+            style:
+              (process.env.OPENAI_IMAGE_STYLE as GenerateParams["style"]) ||
+              "vivid", // vivid | natural
+          }),
+    };
+
+    const response = await client.images.generate(params);
 
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) return null;
-    return Buffer.from(b64, "base64");
+    if (!b64) return { error: "No image was returned by the model." };
+    return { buffer: Buffer.from(b64, "base64") };
   } catch (err) {
-    console.error("Cover image generation failed (continuing without one):", err);
-    return null;
+    console.error("Cover image generation failed:", err);
+    const message = err instanceof Error ? err.message : "Image generation failed.";
+    // gpt-image-1 requires the OpenAI org to complete identity verification —
+    // a very common first-run failure — so call that out specifically.
+    if (/organization.*verif|verify.*organization/i.test(message)) {
+      return {
+        error:
+          "Your OpenAI organization needs to complete identity verification before it can use gpt-image-1 (see platform.openai.com/settings/organization/general).",
+      };
+    }
+    return { error: message };
   }
+}
+
+// Generates cover art and saves it to disk in one step — used by both the
+// initial generate route and the standalone "regenerate cover" route.
+export async function generateAndSaveCover(
+  idea: string,
+  type: ProductTypeId,
+  content: ProductContent,
+  apiKey: string | null | undefined,
+  productId: number
+): Promise<{ path: string | null; error: string | null }> {
+  const result = await generateCoverImage(idea, type, content, apiKey);
+  if ("error" in result) {
+    return { path: null, error: result.error };
+  }
+  const path = saveCoverImage(result.buffer, productId);
+  return { path, error: null };
 }
 
 // Deterministic, no-API-key-required generator so the product is fully
@@ -207,7 +272,8 @@ function buildMockContent(
   const sectionCount = resolveSectionCount(type, length);
   const topic = idea.trim() || "your idea";
   const capitalized = topic.charAt(0).toUpperCase() + topic.slice(1);
-  const paragraphTarget = lengthMeta.paragraphCount === "1" ? 1 : lengthMeta.paragraphCount === "2" ? 2 : 3;
+  const paragraphTarget =
+    lengthMeta.paragraphCount === "2" ? 2 : lengthMeta.paragraphCount === "3" ? 3 : 5;
 
   const titlePool = [
     "Getting clear on the goal",
@@ -227,12 +293,18 @@ function buildMockContent(
     titlePool[i] ?? `Going deeper, part ${i + 1 - titlePool.length}`
   );
 
+  const paragraphPool = [
+    `This ${meta.sectionNoun} walks through "%h%" as it applies to ${topic}. It breaks the idea down into plain language, gives the reader a clear next action, and connects back to the bigger goal of ${topic}.`,
+    `In practice, this means starting small: pick one concrete change related to ${topic}, try it this week, and notice what shifts. The goal isn't perfection — it's steady, visible progress you can build on.`,
+    `Revisit this ${meta.sectionNoun} whenever ${topic} starts to feel overwhelming again; the same core idea applies whether you're just starting out or refining something that's already working.`,
+    `Think of this as a checkpoint, not a finish line — come back to it after you've tried a few things and see what's actually changed for you with ${topic}.`,
+    `The people who get the most out of this ${meta.sectionNoun} are the ones who write things down as they go, rather than trying to hold it all in their head.`,
+  ];
+
   const sections = sectionTitles.map((heading, i) => {
-    const paragraphs = [
-      `This ${meta.sectionNoun} walks through "${heading.toLowerCase()}" as it applies to ${topic}. It breaks the idea down into plain language, gives the reader a clear next action, and connects back to the bigger goal of ${topic}.`,
-      `In practice, this means starting small: pick one concrete change related to ${topic}, try it this week, and notice what shifts. The goal isn't perfection — it's steady, visible progress you can build on.`,
-      `Revisit this ${meta.sectionNoun} whenever ${topic} starts to feel overwhelming again; the same core idea applies whether you're just starting out or refining something that's already working.`,
-    ].slice(0, paragraphTarget);
+    const paragraphs = paragraphPool
+      .slice(0, paragraphTarget)
+      .map((p) => p.replace("%h%", heading.toLowerCase()));
 
     const bulletPool = [
       `Identify where you are today with ${topic}`,

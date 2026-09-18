@@ -10,6 +10,7 @@ import {
   ProductLength,
 } from "@/lib/productTypes";
 import ProductEditor from "@/components/ProductEditor";
+import CoverRegenerateButton from "@/components/CoverRegenerateButton";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +67,22 @@ export default async function ProductPage({
               worksheetHint={meta?.worksheetHint ?? false}
               sectionNoun={meta?.sectionNoun ?? "section"}
             />
+            <CoverRegenerateButton
+              productId={product.id}
+              hasCover={Boolean(product.cover_image_path)}
+            />
           </div>
         )}
       </div>
+
+      {product.status === "ready" &&
+        !product.cover_image_path &&
+        product.cover_error && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <span className="font-semibold">No cover art yet:</span>{" "}
+            {product.cover_error}
+          </div>
+        )}
 
       {product.status === "generating" && (
         <div className="mt-10 border border-dashed border-zinc-300 rounded-xl p-12 text-center bg-white">

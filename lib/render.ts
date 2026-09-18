@@ -16,12 +16,13 @@ export function renderProductHtml(
   const accent = meta.accent;
   const accentSoft = meta.accentSoft;
 
-  // With AI cover art: a dark gradient scrim over the photo/illustration so
-  // the white cover text stays legible, image itself filling the page.
-  // Without it (demo mode, or image generation failed): the original
-  // brand-accent gradient.
+  // With AI cover art, the title/subtitle/callouts are already baked into
+  // the generated image itself, so it's used as-is, full-bleed, with no
+  // overlay — darkening it further would muddy the design the model made.
+  // Without a cover image (demo mode, or generation failed): fall back to
+  // the plain brand-accent gradient with the real HTML text on top.
   const coverBackground = coverImageDataUri
-    ? `linear-gradient(190deg, rgba(17,24,39,0.15) 0%, rgba(17,24,39,0.92) 92%), url('${coverImageDataUri}')`
+    ? `url('${coverImageDataUri}')`
     : `linear-gradient(160deg, ${accent} 0%, #111827 120%)`;
 
   const sectionsHtml = content.sections
@@ -226,10 +227,14 @@ export function renderProductHtml(
 <body>
 
   <div class="page cover">
-    <div class="cover-badge">${esc(meta.label)}</div>
+    ${
+      coverImageDataUri
+        ? "" // Title/subtitle/tagline are already rendered into the AI cover art itself.
+        : `<div class="cover-badge">${esc(meta.label)}</div>
     <h1>${esc(content.title)}</h1>
     <div class="subtitle">${esc(content.subtitle)}</div>
-    <div class="tagline">${esc(content.tagline)}</div>
+    <div class="tagline">${esc(content.tagline)}</div>`
+    }
   </div>
 
   <div class="page intro">
