@@ -34,6 +34,7 @@ export default async function ProductPage({
 
   const meta = PRODUCT_TYPES[product.product_type as ProductTypeId];
   const kind = meta?.kind;
+  const supportsCoverArt = kind === "document" || kind === "puzzle";
   const lengthMeta = PRODUCT_LENGTHS[(product.length as ProductLength) || "medium"];
   const difficultyMeta = product.difficulty
     ? PUZZLE_DIFFICULTIES[product.difficulty as ProductDifficulty]
@@ -82,7 +83,7 @@ export default async function ProductPage({
                 Download PDF
               </a>
             )}
-            {kind === "document" && product.cover_image_path && (
+            {supportsCoverArt && product.cover_image_path && (
               <a
                 href={`/api/products/${product.id}/cover`}
                 className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
@@ -98,7 +99,7 @@ export default async function ProductPage({
                 sectionNoun={meta?.sectionNoun ?? "section"}
               />
             )}
-            {kind === "document" && (
+            {supportsCoverArt && (
               <CoverRegenerateButton
                 productId={product.id}
                 hasCover={Boolean(product.cover_image_path)}
@@ -108,7 +109,7 @@ export default async function ProductPage({
         )}
       </div>
 
-      {kind === "document" &&
+      {supportsCoverArt &&
         product.status === "ready" &&
         !product.cover_image_path &&
         product.cover_error && (

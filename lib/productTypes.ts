@@ -276,6 +276,15 @@ export type ProductContent = {
   callToAction: string;
 };
 
+// The minimal shape cover-art generation actually needs — both
+// ProductContent (document-kind) and PuzzleBookContent (puzzle-kind)
+// structurally satisfy this, so one cover generator serves both.
+export type CoverContentInput = {
+  title: string;
+  subtitle: string;
+  tagline: string;
+};
+
 // ---- Puzzle (crossword / word search) types ----
 
 export type ProductDifficulty = "easy" | "medium" | "hard";

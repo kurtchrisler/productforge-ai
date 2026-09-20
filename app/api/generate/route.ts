@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       const puzzleCount = PUZZLE_COUNTS[resolvedLength];
       const diffMeta = PUZZLE_DIFFICULTIES[resolvedDifficulty];
 
-      const { content } = await generatePuzzleContent(
+      const { content, mode } = await generatePuzzleContent(
         idea.trim(),
         puzzleType,
         resolvedDifficulty,
@@ -107,16 +107,48 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      const html = renderPuzzleBookHtml(content, puzzleType, resolvedDifficulty, generatedPuzzles);
+      // Same policy as document-kind cover art: only attempt it when
+      // generation actually ran on a real key, never in demo/mock mode, and
+      // a failure here should never take down the whole product.
+      let coverImagePath: string | null = null;
+      let coverError: string | null = null;
+      if (mode === "ai") {
+        const cover = await generateAndSaveCover(
+          idea.trim(),
+          puzzleType,
+          content,
+          userApiKey,
+          productId
+        );
+        coverImagePath = cover.path;
+        coverError = cover.error;
+      }
+      const coverImageDataUri = readCoverImageDataUri(coverImagePath);
+
+      const html = renderPuzzleBookHtml(
+        content,
+        puzzleType,
+        resolvedDifficulty,
+        generatedPuzzles,
+        coverImageDataUri
+      );
       await renderHtmlToPdf(html, productId);
 
       db.prepare(
         `UPDATE products
-         SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, updated_at = datetime('now')
+         SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
          WHERE id = ?`
-      ).run(content.title, JSON.stringify(content), html, `${productId}.pdf`, productId);
+      ).run(
+        content.title,
+        JSON.stringify(content),
+        html,
+        `${productId}.pdf`,
+        coverImagePath,
+        coverError,
+        productId
+      );
 
-      return NextResponse.json({ ok: true, productId, mode: userApiKey ? "ai" : "mock" });
+      return NextResponse.json({ ok: true, productId, mode });
     }
 
     if (kind === "infographic") {

@@ -111,7 +111,13 @@ export function renderProductHtml(
        the 8.5x11 page — showing it with object-fit:contain (rather than
        cropping to cover the page) guarantees nothing on the cover, like
        the title, ever gets cut off. The dark fill blends with the AI
-       image's own dark background so any letterboxing is barely visible. */
+       image's own dark background so any letterboxing is barely visible.
+       An explicit height (not just the .page min-height) is required here:
+       the <img> below is sized with height:100%, and a percentage height
+       only resolves against a DEFINITE parent height — with only
+       min-height set, Chromium was letting the image's natural aspect
+       ratio push it past 11in, spilling a sliver onto a stray extra page. */
+    height: 11in;
     padding: 0;
     background: #0b0f19;
     display: flex;

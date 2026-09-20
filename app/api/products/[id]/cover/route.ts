@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { ProductContent, ProductTypeId } from "@/lib/productTypes";
+import {
+  ProductContent,
+  ProductTypeId,
+  ProductDifficulty,
+  PuzzleBookContent,
+  PRODUCT_TYPES,
+  PUZZLE_DIFFICULTIES,
+} from "@/lib/productTypes";
 import { generateAndSaveCover } from "@/lib/ai";
 import { renderProductHtml } from "@/lib/render";
+import { generateCrossword } from "@/lib/crosswordGenerator";
+import { generateWordSearch } from "@/lib/wordSearchGenerator";
+import { renderPuzzleBookHtml, GeneratedPuzzle } from "@/lib/renderPuzzles";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import { readCoverImageDataUri } from "@/lib/cover";
 import { decryptSecret } from "@/lib/crypto";
@@ -93,24 +103,58 @@ export async function POST(
     );
   }
 
+  const productType = product.product_type as ProductTypeId;
+  const kind = PRODUCT_TYPES[productType]?.kind;
+  if (kind === "infographic") {
+    return NextResponse.json(
+      { error: "Cover art isn't available for infographics — the image itself is the deliverable." },
+      { status: 400 }
+    );
+  }
+
   try {
-    const content = JSON.parse(product.content_json) as ProductContent;
     const productId = Number(id);
 
-    const cover = await generateAndSaveCover(
-      product.idea,
-      product.product_type as ProductTypeId,
-      content,
-      userApiKey,
-      productId
-    );
+    if (kind === "puzzle") {
+      const content = JSON.parse(product.content_json) as PuzzleBookContent;
+      const puzzleType = productType as "crossword" | "word_search";
+      const difficulty = (product.difficulty as ProductDifficulty) || "medium";
+      const diffMeta = PUZZLE_DIFFICULTIES[difficulty];
+
+      const cover = await generateAndSaveCover(product.idea, productType, content, userApiKey, productId);
+      const coverImageDataUri = readCoverImageDataUri(cover.path);
+
+      const generatedPuzzles: GeneratedPuzzle[] = content.puzzles.map((p) => {
+        if (puzzleType === "crossword") {
+          return { subtitle: p.subtitle, crossword: generateCrossword(p.entries, diffMeta.crosswordGridCap) };
+        }
+        return {
+          subtitle: p.subtitle,
+          wordSearch: generateWordSearch(p.entries.map((e) => e.answer), diffMeta.wordSearchGridSize),
+        };
+      });
+
+      const html = renderPuzzleBookHtml(content, puzzleType, difficulty, generatedPuzzles, coverImageDataUri);
+      await renderHtmlToPdf(html, productId);
+
+      db.prepare(
+        `UPDATE products
+         SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(html, `${productId}.pdf`, cover.path, cover.error, productId);
+
+      if (cover.error) {
+        return NextResponse.json({ ok: false, error: cover.error }, { status: 502 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    const content = JSON.parse(product.content_json) as ProductContent;
+
+    const cover = await generateAndSaveCover(product.idea, productType, content, userApiKey, productId);
 
     const coverImageDataUri = readCoverImageDataUri(cover.path);
-    const html = renderProductHtml(
-      content,
-      product.product_type as ProductTypeId,
-      coverImageDataUri
-    );
+    const html = renderProductHtml(content, productType, coverImageDataUri);
     await renderHtmlToPdf(html, productId);
 
     db.prepare(

@@ -6,6 +6,7 @@ import {
   PRODUCT_TYPES,
   PRODUCT_LENGTHS,
   resolveSectionCount,
+  CoverContentInput,
 } from "./productTypes";
 import { saveCoverImage } from "./cover";
 
@@ -177,7 +178,7 @@ function isGptImageModel(model: string): boolean {
 export async function generateCoverImage(
   idea: string,
   type: ProductTypeId,
-  content: ProductContent,
+  content: CoverContentInput,
   apiKey: string | null | undefined
 ): Promise<{ buffer: Buffer } | { error: string }> {
   const client = getClient(apiKey);
@@ -253,7 +254,7 @@ Do not include any watermark, logo, placeholder text, or "Lorem Ipsum" — every
 export async function generateAndSaveCover(
   idea: string,
   type: ProductTypeId,
-  content: ProductContent,
+  content: CoverContentInput,
   apiKey: string | null | undefined,
   productId: number
 ): Promise<{ path: string | null; error: string | null }> {

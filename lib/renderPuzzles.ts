@@ -87,7 +87,8 @@ export function renderPuzzleBookHtml(
   content: PuzzleBookContent,
   type: PuzzleKind,
   difficulty: ProductDifficulty,
-  puzzles: GeneratedPuzzle[]
+  puzzles: GeneratedPuzzle[],
+  coverImageDataUri?: string | null
 ): string {
   const meta = PRODUCT_TYPES[type];
   const accent = meta.accent;
@@ -178,6 +179,27 @@ export function renderPuzzleBookHtml(
     align-items: flex-start;
     padding: 0.85in 0.9in;
   }
+  .cover.cover-image {
+    /* Same reasoning as the ebook cover renderer: the AI art is a fixed
+       portrait ratio that doesn't exactly match the page, so it's shown
+       with object-fit:contain (never cropped to fill) inside a dark
+       letterboxed frame. The explicit height is required — a percentage
+       height on the <img> below only resolves against a DEFINITE parent
+       height, and min-height alone let the image spill onto a stray
+       extra page. */
+    height: 11in;
+    padding: 0;
+    background: #0b0f19;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
   .cover-badge {
     display: inline-block;
     background: rgba(255,255,255,0.15);
@@ -251,11 +273,15 @@ export function renderPuzzleBookHtml(
 </head>
 <body>
 
-  <div class="page cover">
-    <div class="cover-badge">${esc(meta.label)} · ${esc(difficulty)} difficulty</div>
+  <div class="page cover${coverImageDataUri ? " cover-image" : ""}">
+    ${
+      coverImageDataUri
+        ? `<img class="cover-img" src="${coverImageDataUri}" alt="${esc(content.title)}" />`
+        : `<div class="cover-badge">${esc(meta.label)} · ${esc(difficulty)} difficulty</div>
     <h1>${esc(content.title)}</h1>
     <div class="subtitle">${esc(content.subtitle)}</div>
-    <div class="tagline">${esc(content.tagline)}</div>
+    <div class="tagline">${esc(content.tagline)}</div>`
+    }
   </div>
 
   ${puzzlePages}
