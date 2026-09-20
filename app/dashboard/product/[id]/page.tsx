@@ -8,6 +8,8 @@ import {
   ProductContent,
   PRODUCT_LENGTHS,
   ProductLength,
+  PUZZLE_DIFFICULTIES,
+  ProductDifficulty,
 } from "@/lib/productTypes";
 import ProductEditor from "@/components/ProductEditor";
 import CoverRegenerateButton from "@/components/CoverRegenerateButton";
@@ -31,7 +33,11 @@ export default async function ProductPage({
   if (!product) notFound();
 
   const meta = PRODUCT_TYPES[product.product_type as ProductTypeId];
+  const kind = meta?.kind;
   const lengthMeta = PRODUCT_LENGTHS[(product.length as ProductLength) || "medium"];
+  const difficultyMeta = product.difficulty
+    ? PUZZLE_DIFFICULTIES[product.difficulty as ProductDifficulty]
+    : null;
 
   return (
     <div className="max-w-5xl mx-auto w-full px-6 py-10">
@@ -46,7 +52,11 @@ export default async function ProductPage({
         <div>
           <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
             {meta?.emoji} {meta?.label ?? product.product_type}
-            {lengthMeta ? ` · ${lengthMeta.label}` : ""}
+            {kind === "puzzle" && difficultyMeta
+              ? ` · ${difficultyMeta.label} · ${lengthMeta ? lengthMeta.label : ""}`
+              : kind === "document" && lengthMeta
+                ? ` · ${lengthMeta.label}`
+                : ""}
           </span>
           <h1 className="text-2xl font-bold text-zinc-900 mt-1">
             {product.title || product.idea}
@@ -55,13 +65,24 @@ export default async function ProductPage({
 
         {product.status === "ready" && product.content_json && (
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            <a
-              href={`/api/products/${product.id}/pdf`}
-              className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
-            >
-              Download PDF
-            </a>
-            {product.cover_image_path && (
+            {kind === "infographic" ? (
+              product.asset_path && (
+                <a
+                  href={`/api/products/${product.id}/image`}
+                  className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
+                >
+                  Download image
+                </a>
+              )
+            ) : (
+              <a
+                href={`/api/products/${product.id}/pdf`}
+                className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
+              >
+                Download PDF
+              </a>
+            )}
+            {kind === "document" && product.cover_image_path && (
               <a
                 href={`/api/products/${product.id}/cover`}
                 className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
@@ -69,21 +90,26 @@ export default async function ProductPage({
                 Download cover
               </a>
             )}
-            <ProductEditor
-              productId={product.id}
-              initialContent={JSON.parse(product.content_json) as ProductContent}
-              worksheetHint={meta?.worksheetHint ?? false}
-              sectionNoun={meta?.sectionNoun ?? "section"}
-            />
-            <CoverRegenerateButton
-              productId={product.id}
-              hasCover={Boolean(product.cover_image_path)}
-            />
+            {kind === "document" && (
+              <ProductEditor
+                productId={product.id}
+                initialContent={JSON.parse(product.content_json) as ProductContent}
+                worksheetHint={meta?.worksheetHint ?? false}
+                sectionNoun={meta?.sectionNoun ?? "section"}
+              />
+            )}
+            {kind === "document" && (
+              <CoverRegenerateButton
+                productId={product.id}
+                hasCover={Boolean(product.cover_image_path)}
+              />
+            )}
           </div>
         )}
       </div>
 
-      {product.status === "ready" &&
+      {kind === "document" &&
+        product.status === "ready" &&
         !product.cover_image_path &&
         product.cover_error && (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -108,7 +134,23 @@ export default async function ProductPage({
         </div>
       )}
 
-      {product.status === "ready" && product.html && (
+      {product.status === "ready" && kind === "infographic" && product.asset_path && (
+        <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden bg-zinc-100">
+          <div className="bg-white border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500">
+            Preview
+          </div>
+          <div className="flex justify-center py-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/products/${product.id}/image`}
+              alt={product.title || "Infographic"}
+              className="max-w-full sm:max-w-md rounded-lg shadow-sm"
+            />
+          </div>
+        </div>
+      )}
+
+      {product.status === "ready" && kind !== "infographic" && product.html && (
         <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden bg-zinc-100">
           <div className="bg-white border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500">
             Preview

@@ -82,6 +82,15 @@ CREATE TABLE IF NOT EXISTS sessions (
   if (!productColumns.some((c) => c.name === "cover_error")) {
     database.exec(`ALTER TABLE products ADD COLUMN cover_error TEXT`);
   }
+  // Migration: puzzle difficulty (crossword/word search only) and a generic
+  // non-PDF asset path (used by infographics, which deliver a single PNG
+  // rather than a multi-page PDF).
+  if (!productColumns.some((c) => c.name === "difficulty")) {
+    database.exec(`ALTER TABLE products ADD COLUMN difficulty TEXT`);
+  }
+  if (!productColumns.some((c) => c.name === "asset_path")) {
+    database.exec(`ALTER TABLE products ADD COLUMN asset_path TEXT`);
+  }
 
   return database;
 }
@@ -122,6 +131,8 @@ export type Product = {
   length: string;
   cover_image_path: string | null;
   cover_error: string | null;
+  difficulty: string | null;
+  asset_path: string | null;
   title: string | null;
   status: "pending" | "generating" | "ready" | "error";
   content_json: string | null;

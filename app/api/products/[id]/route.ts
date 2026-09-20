@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { ProductContent, ProductTypeId } from "@/lib/productTypes";
+import { ProductContent, ProductTypeId, PRODUCT_TYPES } from "@/lib/productTypes";
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import { readCoverImageDataUri, deleteCoverImage } from "@/lib/cover";
+import { deleteInfographicImage } from "@/lib/screenshot";
 import fs from "fs";
 import path from "path";
 
@@ -84,6 +85,12 @@ export async function PATCH(
       { status: 400 }
     );
   }
+  if (PRODUCT_TYPES[product.product_type as ProductTypeId]?.kind !== "document") {
+    return NextResponse.json(
+      { error: "This product type isn't editable this way." },
+      { status: 400 }
+    );
+  }
 
   const body = await req.json().catch(() => ({}));
   const content = sanitizeContent(body.content);
@@ -148,6 +155,7 @@ export async function DELETE(
     }
   }
   deleteCoverImage(product.cover_image_path);
+  deleteInfographicImage(product.asset_path);
 
   db.prepare("DELETE FROM products WHERE id = ?").run(id);
   return NextResponse.json({ ok: true });

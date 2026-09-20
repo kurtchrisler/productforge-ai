@@ -24,9 +24,18 @@ export function renderProductHtml(
     .map((section, i) => {
       const bullets =
         section.bullets && section.bullets.length
-          ? `<ul class="bullets">${section.bullets
-              .map((b) => `<li>${esc(b)}</li>`)
-              .join("")}</ul>`
+          ? meta.checklistStyle
+            ? `<div class="checklist">${section.bullets
+                .map(
+                  (b) =>
+                    `<div class="checklist-item"><span class="checkbox"></span><span>${esc(
+                      b
+                    )}</span></div>`
+                )
+                .join("")}</div>`
+            : `<ul class="bullets">${section.bullets
+                .map((b) => `<li>${esc(b)}</li>`)
+                .join("")}</ul>`
           : "";
 
       const worksheet =
@@ -190,6 +199,28 @@ export function renderProductHtml(
     line-height: 1.7;
     margin-bottom: 6px;
     color: #2b2f3a;
+  }
+  .checklist {
+    margin: 0 0 16px 0;
+  }
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px dashed rgba(0,0,0,0.12);
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: #2b2f3a;
+  }
+  .checklist-item:last-child { border-bottom: none; }
+  .checkbox {
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+    margin-top: 1px;
+    border: 2px solid ${accent};
+    border-radius: 4px;
   }
   .worksheet {
     background: ${accentSoft};

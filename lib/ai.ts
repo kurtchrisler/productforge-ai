@@ -9,7 +9,7 @@ import {
 } from "./productTypes";
 import { saveCoverImage } from "./cover";
 
-function getClient(apiKey: string | null | undefined): OpenAI | null {
+export function getClient(apiKey: string | null | undefined): OpenAI | null {
   // Intentionally does NOT fall back to a server-wide env var: generation
   // always runs on the requesting customer's own OpenAI key, never ours.
   // No key on file for that user -> mock content (see buildMockContent).
@@ -44,8 +44,13 @@ This needs to read like a real, finished ${meta.label.toLowerCase()} a customer 
 
 Format requirements:
 - Produce exactly ${sectionCount} ${meta.sectionNoun}s (sections). Each one should cover distinct ground — no repeating the same point across sections.
-- Each section needs a short punchy "heading" and a "body" of roughly ${lengthMeta.wordTarget} words, written as ${lengthMeta.paragraphCount} full paragraphs (each paragraph ${lengthMeta.sentenceRange} sentences). This is a hard target — sections noticeably shorter than ${lengthMeta.wordTarget} words are not acceptable. Separate paragraphs within "body" with a blank line ("\\n\\n").
-- Where useful, add a "bullets" array of ${lengthMeta.bulletRange} short actionable bullet points for that section.
+${
+  meta.checklistStyle
+    ? `- Each section needs a short punchy "heading" and a brief 1-2 sentence "body" that sets up what the checklist covers — this is NOT a prose product, so keep "body" short.
+- The real content goes in "bullets": a long array of 8-14 individual, specific, checkable action items for that section — each one a single concrete checklist item the reader can literally check off (short, imperative, no fluff — e.g. "Back up your files before starting" not "It is important to back up your files").`
+    : `- Each section needs a short punchy "heading" and a "body" of roughly ${lengthMeta.wordTarget} words, written as ${lengthMeta.paragraphCount} full paragraphs (each paragraph ${lengthMeta.sentenceRange} sentences). This is a hard target — sections noticeably shorter than ${lengthMeta.wordTarget} words are not acceptable. Separate paragraphs within "body" with a blank line ("\\n\\n").
+- Where useful, add a "bullets" array of ${lengthMeta.bulletRange} short actionable bullet points for that section.`
+}
 ${
   meta.worksheetHint
     ? `- Because this is a ${meta.label.toLowerCase()}, most sections should also include a "worksheet" array of 3-6 short fill-in-the-blank prompts or tracking lines the reader will physically write answers next to (e.g. "Today's top priority: ____").`

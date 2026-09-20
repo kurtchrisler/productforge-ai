@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { isProductType, isProductLength } from "@/lib/productTypes";
+import {
+  isProductType,
+  isProductLength,
+  isProductDifficulty,
+  PRODUCT_TYPES,
+  PUZZLE_COUNTS,
+  PUZZLE_DIFFICULTIES,
+  ProductTypeId,
+} from "@/lib/productTypes";
 import { generateProductContent, generateAndSaveCover } from "@/lib/ai";
+import { generatePuzzleContent } from "@/lib/puzzleContent";
+import { generateInfographicContent } from "@/lib/infographicContent";
+import { generateCrossword } from "@/lib/crosswordGenerator";
+import { generateWordSearch } from "@/lib/wordSearchGenerator";
 import { renderProductHtml } from "@/lib/render";
+import { renderPuzzleBookHtml, GeneratedPuzzle } from "@/lib/renderPuzzles";
+import { renderInfographicHtml, INFOGRAPHIC_WIDTH, INFOGRAPHIC_HEIGHT } from "@/lib/renderInfographic";
 import { renderHtmlToPdf } from "@/lib/pdf";
+import { renderHtmlToPng } from "@/lib/screenshot";
 import { decryptSecret } from "@/lib/crypto";
 import { readCoverImageDataUri } from "@/lib/cover";
 
@@ -15,7 +30,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
-  const { idea, productType, length } = await req.json().catch(() => ({}));
+  const { idea, productType, length, difficulty, instructions } = await req
+    .json()
+    .catch(() => ({}));
 
   if (!idea || typeof idea !== "string" || idea.trim().length < 5) {
     return NextResponse.json(
@@ -31,12 +48,24 @@ export async function POST(req: NextRequest) {
   }
   const resolvedLength =
     typeof length === "string" && isProductLength(length) ? length : "medium";
+  const resolvedDifficulty =
+    typeof difficulty === "string" && isProductDifficulty(difficulty) ? difficulty : "medium";
+  const resolvedInstructions =
+    typeof instructions === "string" ? instructions.trim().slice(0, 2000) : "";
+
+  const kind = PRODUCT_TYPES[productType].kind;
 
   const insert = db
     .prepare(
-      `INSERT INTO products (user_id, idea, product_type, length, status) VALUES (?, ?, ?, ?, 'generating')`
+      `INSERT INTO products (user_id, idea, product_type, length, difficulty, status) VALUES (?, ?, ?, ?, ?, 'generating')`
     )
-    .run(user.id, idea.trim(), productType, resolvedLength);
+    .run(
+      user.id,
+      idea.trim(),
+      productType,
+      resolvedLength,
+      kind === "puzzle" ? resolvedDifficulty : null
+    );
   const productId = Number(insert.lastInsertRowid);
 
   let userApiKey: string | null = null;
@@ -49,6 +78,67 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    if (kind === "puzzle") {
+      const puzzleType = productType as Extract<ProductTypeId, "crossword" | "word_search">;
+      const puzzleCount = PUZZLE_COUNTS[resolvedLength];
+      const diffMeta = PUZZLE_DIFFICULTIES[resolvedDifficulty];
+
+      const { content } = await generatePuzzleContent(
+        idea.trim(),
+        puzzleType,
+        resolvedDifficulty,
+        puzzleCount,
+        userApiKey
+      );
+
+      const generatedPuzzles: GeneratedPuzzle[] = content.puzzles.map((p) => {
+        if (puzzleType === "crossword") {
+          return {
+            subtitle: p.subtitle,
+            crossword: generateCrossword(p.entries, diffMeta.crosswordGridCap),
+          };
+        }
+        return {
+          subtitle: p.subtitle,
+          wordSearch: generateWordSearch(
+            p.entries.map((e) => e.answer),
+            diffMeta.wordSearchGridSize
+          ),
+        };
+      });
+
+      const html = renderPuzzleBookHtml(content, puzzleType, resolvedDifficulty, generatedPuzzles);
+      await renderHtmlToPdf(html, productId);
+
+      db.prepare(
+        `UPDATE products
+         SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(content.title, JSON.stringify(content), html, `${productId}.pdf`, productId);
+
+      return NextResponse.json({ ok: true, productId, mode: userApiKey ? "ai" : "mock" });
+    }
+
+    if (kind === "infographic") {
+      const { content } = await generateInfographicContent(
+        idea.trim(),
+        resolvedInstructions,
+        userApiKey
+      );
+
+      const html = renderInfographicHtml(content);
+      const assetPath = await renderHtmlToPng(html, productId, INFOGRAPHIC_WIDTH, INFOGRAPHIC_HEIGHT);
+
+      db.prepare(
+        `UPDATE products
+         SET status = 'ready', title = ?, content_json = ?, html = ?, asset_path = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(content.title, JSON.stringify(content), html, assetPath, productId);
+
+      return NextResponse.json({ ok: true, productId, mode: userApiKey ? "ai" : "mock" });
+    }
+
+    // kind === "document" (ebook, guide, planner, workbook, template, checklist)
     const { content, mode } = await generateProductContent(
       idea.trim(),
       productType,
