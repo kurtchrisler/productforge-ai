@@ -27,6 +27,9 @@ export type ProductTypeMeta = {
   // Document-kind fields (still present with harmless defaults on
   // non-document types, so callers never need an extra null-check).
   sectionNoun: string; // what to call a "section" in prompts (chapter, day, module...)
+  // Small nudge applied on top of a length tier's base section count (see
+  // resolveSectionCount) — e.g. templates read better as fewer, meatier
+  // modules, so they get a negative nudge relative to an ebook's chapters.
   sectionCountHint: number;
   worksheetHint: boolean; // whether worksheet-style fill-in blocks make sense
   checklistStyle: boolean; // render bullets as checkboxes instead of dots
@@ -44,7 +47,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     emoji: "\u{1F4D8}",
     kind: "document",
     sectionNoun: "chapter",
-    sectionCountHint: 6,
+    sectionCountHint: 1,
     worksheetHint: false,
     checklistStyle: false,
   },
@@ -59,7 +62,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     emoji: "\u{1F9ED}",
     kind: "document",
     sectionNoun: "step",
-    sectionCountHint: 7,
+    sectionCountHint: 1,
     worksheetHint: false,
     checklistStyle: false,
   },
@@ -74,7 +77,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     emoji: "\u{1F5D3}\u{FE0F}",
     kind: "document",
     sectionNoun: "section",
-    sectionCountHint: 6,
+    sectionCountHint: 0,
     worksheetHint: true,
     checklistStyle: false,
   },
@@ -89,7 +92,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     emoji: "\u{1F4DD}",
     kind: "document",
     sectionNoun: "exercise",
-    sectionCountHint: 6,
+    sectionCountHint: 0,
     worksheetHint: true,
     checklistStyle: false,
   },
@@ -104,7 +107,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     emoji: "\u{1F4CB}",
     kind: "document",
     sectionNoun: "module",
-    sectionCountHint: 5,
+    sectionCountHint: -2,
     worksheetHint: true,
     checklistStyle: false,
   },
@@ -119,7 +122,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     emoji: "\u{2705}",
     kind: "document",
     sectionNoun: "checklist",
-    sectionCountHint: 5,
+    sectionCountHint: -1,
     worksheetHint: false,
     checklistStyle: true,
   },
@@ -176,14 +179,18 @@ export function isProductType(value: string): value is ProductTypeId {
   return Object.prototype.hasOwnProperty.call(PRODUCT_TYPES, value);
 }
 
-export type ProductLength = "short" | "medium" | "long";
+// Customers pick a target page count directly rather than a vague
+// Short/Medium/Long label — the id IS the approximate page count.
+export type ProductLength = "10" | "25" | "50" | "75" | "100" | "150";
 
 export type ProductLengthMeta = {
   id: ProductLength;
-  label: string;
+  label: string; // "~10 pages"
   description: string;
-  // Added to (or subtracted from) a product type's sectionCountHint.
-  sectionDelta: number;
+  targetPages: number;
+  // Base chapter/section count for this tier (nudged per product type by
+  // PRODUCT_TYPES[type].sectionCountHint — see resolveSectionCount).
+  sectionCount: number;
   // How many paragraphs each section's body should be written as.
   paragraphCount: string;
   // Target sentence count PER PARAGRAPH, given to the AI prompt.
@@ -196,41 +203,107 @@ export type ProductLengthMeta = {
   bulletRange: string;
   // Target sentence count for the introduction and conclusion.
   introSentenceRange: string;
+  // Tiers big enough to blow past a single chat-completion's output-token
+  // ceiling are generated chapter-by-chapter (one AI call per chapter,
+  // batched with limited concurrency) instead of one JSON blob for the
+  // whole book — see generateLongFormContent in lib/ai.ts.
+  multiCall: boolean;
+  // Output-token budget for a single-call generation (multiCall: false).
+  maxTokens: number;
+  // Output-token budget PER CHAPTER for a multi-call generation.
+  chapterMaxTokens: number;
 };
 
 export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
-  short: {
-    id: "short",
-    label: "Short",
-    description: "A quick, concise read — fewer sections, brief sections.",
-    sectionDelta: -1,
-    paragraphCount: "2",
-    sentenceRange: "3-5",
-    wordTarget: "150-250",
+  "10": {
+    id: "10",
+    label: "~10 pages",
+    description: "A quick, focused read.",
+    targetPages: 10,
+    sectionCount: 5,
+    paragraphCount: "2-3",
+    sentenceRange: "4-6",
+    wordTarget: "550-850",
     bulletRange: "3-5",
-    introSentenceRange: "3-4",
+    introSentenceRange: "4-6",
+    multiCall: false,
+    maxTokens: 7000,
+    chapterMaxTokens: 0,
   },
-  medium: {
-    id: "medium",
-    label: "Medium",
-    description: "A solid, well-rounded, genuinely complete product — the default.",
-    sectionDelta: 2,
-    paragraphCount: "3",
+  "25": {
+    id: "25",
+    label: "~25 pages",
+    description: "A short, complete book.",
+    targetPages: 25,
+    sectionCount: 8,
+    paragraphCount: "4",
     sentenceRange: "5-7",
-    wordTarget: "350-550",
+    wordTarget: "950-1300",
     bulletRange: "4-7",
-    introSentenceRange: "5-7",
+    introSentenceRange: "6-9",
+    multiCall: false,
+    maxTokens: 16000,
+    chapterMaxTokens: 0,
   },
-  long: {
-    id: "long",
-    label: "Long",
-    description: "An in-depth, comprehensive product — more sections, each one written in real depth.",
-    sectionDelta: 5,
-    paragraphCount: "4-5",
+  "50": {
+    id: "50",
+    label: "~50 pages",
+    description: "A standard, full-length book — the default.",
+    targetPages: 50,
+    sectionCount: 12,
+    paragraphCount: "7-8",
     sentenceRange: "5-8",
-    wordTarget: "650-900",
+    wordTarget: "1700-2100",
     bulletRange: "5-8",
     introSentenceRange: "8-12",
+    multiCall: true,
+    maxTokens: 0,
+    chapterMaxTokens: 4000,
+  },
+  "75": {
+    id: "75",
+    label: "~75 pages",
+    description: "An in-depth, comprehensive book.",
+    targetPages: 75,
+    sectionCount: 15,
+    paragraphCount: "9-10",
+    sentenceRange: "6-9",
+    wordTarget: "2150-2550",
+    bulletRange: "6-9",
+    introSentenceRange: "10-14",
+    multiCall: true,
+    maxTokens: 0,
+    chapterMaxTokens: 4600,
+  },
+  "100": {
+    id: "100",
+    label: "~100 pages",
+    description: "A full, thorough book.",
+    targetPages: 100,
+    sectionCount: 18,
+    paragraphCount: "10-11",
+    sentenceRange: "6-9",
+    wordTarget: "2450-2900",
+    bulletRange: "6-10",
+    introSentenceRange: "10-14",
+    multiCall: true,
+    maxTokens: 0,
+    chapterMaxTokens: 5300,
+  },
+  "150": {
+    id: "150",
+    label: "~150 pages",
+    description: "A comprehensive, deep-dive book.",
+    targetPages: 150,
+    sectionCount: 22,
+    paragraphCount: "12-13",
+    sentenceRange: "6-9",
+    wordTarget: "2950-3550",
+    bulletRange: "7-10",
+    introSentenceRange: "12-16",
+    multiCall: true,
+    maxTokens: 0,
+    chapterMaxTokens: 6500,
   },
 };
 
@@ -240,21 +313,42 @@ export function isProductLength(value: string): value is ProductLength {
   return Object.prototype.hasOwnProperty.call(PRODUCT_LENGTHS, value);
 }
 
+// Older products stored before this tier redesign have "short"/"medium"/
+// "long" in the database — map those to the closest new tier so existing
+// records still display and regenerate sensibly instead of falling back to
+// a blank/undefined length.
+const LEGACY_LENGTH_MAP: Record<string, ProductLength> = {
+  short: "10",
+  medium: "50",
+  long: "100",
+};
+
+export function normalizeLength(value: string | null | undefined): ProductLength {
+  if (value && isProductLength(value)) return value;
+  if (value && LEGACY_LENGTH_MAP[value]) return LEGACY_LENGTH_MAP[value];
+  return "50";
+}
+
 // How many individual puzzles a crossword/word-search product contains, tied
-// to the same Short/Medium/Long control used by document-kind products.
+// to the same page-length control used by document-kind products (a puzzle
+// "page" isn't literally the same as a book page, but more puzzles = a
+// thicker book, so the same tiers scale the puzzle count up sensibly).
 export const PUZZLE_COUNTS: Record<ProductLength, number> = {
-  short: 5,
-  medium: 10,
-  long: 20,
+  "10": 5,
+  "25": 10,
+  "50": 15,
+  "75": 20,
+  "100": 30,
+  "150": 45,
 };
 
 export function resolveSectionCount(
   type: ProductTypeId,
   length: ProductLength
 ): number {
-  const base = PRODUCT_TYPES[type].sectionCountHint;
-  const delta = PRODUCT_LENGTHS[length].sectionDelta;
-  return Math.min(12, Math.max(3, base + delta));
+  const base = PRODUCT_LENGTHS[length].sectionCount;
+  const delta = PRODUCT_TYPES[type].sectionCountHint;
+  return Math.min(30, Math.max(3, base + delta));
 }
 
 // Shared content shape produced by the AI (or mock) generator and consumed

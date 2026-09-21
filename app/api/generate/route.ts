@@ -3,7 +3,7 @@ import { getDb, Product } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import {
   isProductType,
-  isProductLength,
+  normalizeLength,
   isProductDifficulty,
   PRODUCT_TYPES,
   PUZZLE_COUNTS,
@@ -47,8 +47,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const resolvedLength =
-    typeof length === "string" && isProductLength(length) ? length : "medium";
+  const resolvedLength = normalizeLength(typeof length === "string" ? length : undefined);
   const resolvedDifficulty =
     typeof difficulty === "string" && isProductDifficulty(difficulty) ? difficulty : "medium";
   const resolvedInstructions =

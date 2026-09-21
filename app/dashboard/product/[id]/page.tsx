@@ -7,7 +7,7 @@ import {
   ProductTypeId,
   ProductContent,
   PRODUCT_LENGTHS,
-  ProductLength,
+  normalizeLength,
   PUZZLE_DIFFICULTIES,
   ProductDifficulty,
 } from "@/lib/productTypes";
@@ -35,7 +35,7 @@ export default async function ProductPage({
   const meta = PRODUCT_TYPES[product.product_type as ProductTypeId];
   const kind = meta?.kind;
   const supportsCoverArt = kind === "document" || kind === "puzzle";
-  const lengthMeta = PRODUCT_LENGTHS[(product.length as ProductLength) || "medium"];
+  const lengthMeta = PRODUCT_LENGTHS[normalizeLength(product.length)];
   const difficultyMeta = product.difficulty
     ? PUZZLE_DIFFICULTIES[product.difficulty as ProductDifficulty]
     : null;

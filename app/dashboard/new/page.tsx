@@ -9,6 +9,7 @@ import {
   ProductTypeId,
   PRODUCT_LENGTH_LIST,
   ProductLength,
+  PUZZLE_COUNTS,
   PUZZLE_DIFFICULTY_LIST,
   ProductDifficulty,
 } from "@/lib/productTypes";
@@ -17,7 +18,7 @@ export default function NewProductPage() {
   const router = useRouter();
   const [idea, setIdea] = useState("");
   const [productType, setProductType] = useState<ProductTypeId>("ebook");
-  const [length, setLength] = useState<ProductLength>("medium");
+  const [length, setLength] = useState<ProductLength>("50");
   const [difficulty, setDifficulty] = useState<ProductDifficulty>("medium");
   const [instructions, setInstructions] = useState("");
   const [loading, setLoading] = useState(false);
@@ -163,9 +164,9 @@ export default function NewProductPage() {
         {kind !== "infographic" && (
           <div>
             <label className="text-sm font-semibold text-zinc-800">
-              Length
+              {kind === "puzzle" ? "Length" : "Length (target page count)"}
             </label>
-            <div className="mt-2 grid grid-cols-3 gap-3">
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
               {PRODUCT_LENGTH_LIST.map((l) => {
                 const selected = length === l.id;
                 return (
@@ -184,17 +185,20 @@ export default function NewProductPage() {
                     </div>
                     <div className="text-xs text-zinc-500 mt-1 leading-snug">
                       {kind === "puzzle"
-                        ? l.id === "short"
-                          ? "5 puzzles"
-                          : l.id === "medium"
-                            ? "10 puzzles"
-                            : "20 puzzles"
+                        ? `${PUZZLE_COUNTS[l.id]} puzzles`
                         : l.description}
                     </div>
                   </button>
                 );
               })}
             </div>
+            {kind === "document" && (
+              <p className="text-xs text-zinc-400 mt-2">
+                Page counts are approximate. Books over ~25 pages are written
+                chapter by chapter, so they take longer to generate — usually
+                1-4 minutes depending on length.
+              </p>
+            )}
           </div>
         )}
 
@@ -248,7 +252,7 @@ export default function NewProductPage() {
               ? "This writes the content and renders your infographic image — usually 15-30 seconds."
               : kind === "puzzle"
                 ? "This writes the puzzle words/clues, builds each grid, and typesets a PDF — usually 30-90 seconds, longer for more puzzles."
-                : "This writes the content, generates cover art, and typesets a PDF — usually 30-90 seconds, longer for Long-length products."}
+                : "This writes the content, generates cover art, and typesets a PDF and Kindle file — usually 30-90 seconds for shorter page counts, up to a few minutes for a full-length book."}
           </p>
         )}
       </form>

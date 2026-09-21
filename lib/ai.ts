@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import {
   ProductContent,
+  ProductSection,
   ProductTypeId,
   ProductLength,
   PRODUCT_TYPES,
@@ -9,6 +10,7 @@ import {
   CoverContentInput,
 } from "./productTypes";
 import { saveCoverImage } from "./cover";
+import { mapWithConcurrency } from "./concurrency";
 
 export function getClient(apiKey: string | null | undefined): OpenAI | null {
   // Intentionally does NOT fall back to a server-wide env var: generation
@@ -18,12 +20,90 @@ export function getClient(apiKey: string | null | undefined): OpenAI | null {
   return new OpenAI({ apiKey });
 }
 
-function maxTokensFor(length: ProductLength): number {
-  // Generous budgets so long, multi-paragraph JSON output never gets cut off
-  // mid-document (a truncated response fails JSON parsing entirely).
-  if (length === "long") return 16000;
-  if (length === "medium") return 10000;
-  return 5000;
+// At most this many chapter-generation calls run at once for a long-form
+// (multiCall) book. High enough to keep wall-clock time reasonable for a
+// 100-150 page book (which can be 18-22 chapters), low enough to stay well
+// under a typical OpenAI account's burst rate limit.
+const CHAPTER_CONCURRENCY = 4;
+
+// Returns the parsed JSON body of a chat completion, or throws a clear,
+// customer-facing error. Shared by the single-call path, the outline call,
+// and each per-chapter call in the long-form path, so all three fail the
+// same way on a cut-off or empty response.
+async function callChatJSON(
+  client: OpenAI,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number,
+  label: string
+): Promise<Record<string, unknown>> {
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const completion = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.8,
+    max_tokens: maxTokens,
+  });
+
+  const choice = completion.choices[0];
+  if (choice?.finish_reason === "length") {
+    throw new Error(
+      `${label} was cut off because it was too long for "${model}"'s output limit.`
+    );
+  }
+
+  const raw = choice?.message?.content;
+  if (!raw) throw new Error(`${label}: empty response from AI model.`);
+
+  let jsonText = raw.trim();
+  const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) jsonText = fenceMatch[1].trim();
+
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    throw new Error(`${label}: AI response wasn't valid JSON.`);
+  }
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 1200): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (retries <= 0) throw err;
+    await new Promise((r) => setTimeout(r, delayMs));
+    return withRetry(fn, retries - 1, delayMs);
+  }
+}
+
+// Parses a leading integer out of a range string like "4-6" or "9" (used to
+// scale the deterministic mock-content generator to the requested tier).
+function parseFirstInt(range: string, fallback: number): number {
+  const match = range.match(/\d+/);
+  return match ? parseInt(match[0], 10) : fallback;
+}
+
+const SYSTEM_PROMPT =
+  "You generate structured digital-product content and reply with strict JSON only.";
+
+// Shared "how to format a section" rules, reused by both the single-call
+// prompt (whole book at once) and the per-chapter prompt (long-form path).
+function sectionFormatRules(type: ProductTypeId, length: ProductLength): string {
+  const meta = PRODUCT_TYPES[type];
+  const lengthMeta = PRODUCT_LENGTHS[length];
+  return meta.checklistStyle
+    ? `- The "heading" should be short and punchy. The "body" is a brief 1-2 sentence setup for what the checklist covers — this is NOT a prose product, so keep "body" short.
+- The real content goes in "bullets": a long array of 8-14 individual, specific, checkable action items — each one a single concrete checklist item the reader can literally check off (short, imperative, no fluff — e.g. "Back up your files before starting" not "It is important to back up your files").`
+    : `- The "heading" should be short and punchy. The "body" should be roughly ${lengthMeta.wordTarget} words, written as ${lengthMeta.paragraphCount} full paragraphs (each paragraph ${lengthMeta.sentenceRange} sentences). This is a hard target — a body noticeably shorter than ${lengthMeta.wordTarget} words is not acceptable. Separate paragraphs within "body" with a blank line ("\\n\\n").
+- Where useful, add a "bullets" array of ${lengthMeta.bulletRange} short actionable bullet points.${
+        meta.worksheetHint
+          ? ` Also include a "worksheet" array of 3-6 short fill-in-the-blank prompts or tracking lines the reader will physically write answers next to (e.g. "Today's top priority: ____").`
+          : ""
+      }`;
 }
 
 function buildPrompt(
@@ -45,18 +125,7 @@ This needs to read like a real, finished ${meta.label.toLowerCase()} a customer 
 
 Format requirements:
 - Produce exactly ${sectionCount} ${meta.sectionNoun}s (sections). Each one should cover distinct ground — no repeating the same point across sections.
-${
-  meta.checklistStyle
-    ? `- Each section needs a short punchy "heading" and a brief 1-2 sentence "body" that sets up what the checklist covers — this is NOT a prose product, so keep "body" short.
-- The real content goes in "bullets": a long array of 8-14 individual, specific, checkable action items for that section — each one a single concrete checklist item the reader can literally check off (short, imperative, no fluff — e.g. "Back up your files before starting" not "It is important to back up your files").`
-    : `- Each section needs a short punchy "heading" and a "body" of roughly ${lengthMeta.wordTarget} words, written as ${lengthMeta.paragraphCount} full paragraphs (each paragraph ${lengthMeta.sentenceRange} sentences). This is a hard target — sections noticeably shorter than ${lengthMeta.wordTarget} words are not acceptable. Separate paragraphs within "body" with a blank line ("\\n\\n").
-- Where useful, add a "bullets" array of ${lengthMeta.bulletRange} short actionable bullet points for that section.`
-}
-${
-  meta.worksheetHint
-    ? `- Because this is a ${meta.label.toLowerCase()}, most sections should also include a "worksheet" array of 3-6 short fill-in-the-blank prompts or tracking lines the reader will physically write answers next to (e.g. "Today's top priority: ____").`
-    : `- Only include a "worksheet" array if genuinely useful; otherwise omit it.`
-}
+${sectionFormatRules(type, length)}
 - Write a compelling "title", a one-line "subtitle", a short punchy "tagline" for the cover, a substantive "introduction" (${lengthMeta.introSentenceRange} sentences) that sets up exactly what the reader will get and why it matters, a "conclusion" (${lengthMeta.introSentenceRange} sentences) that ties it together, and a short "callToAction" encouraging the reader to take the next step.
 
 Respond with ONLY a single JSON object with this exact shape, no markdown fences, no commentary:
@@ -71,42 +140,215 @@ Respond with ONLY a single JSON object with this exact shape, no markdown fences
 }`;
 }
 
-function safeParseContent(raw: string): ProductContent {
-  let jsonText = raw.trim();
-  // Strip markdown code fences if the model added them anyway.
-  const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenceMatch) jsonText = fenceMatch[1].trim();
+function parseSection(s: {
+  heading?: string;
+  body?: string;
+  bullets?: string[];
+  worksheet?: string[];
+}): ProductSection {
+  return {
+    heading: s.heading ?? "",
+    body: s.body ?? "",
+    bullets: Array.isArray(s.bullets) ? s.bullets : undefined,
+    worksheet: Array.isArray(s.worksheet) ? s.worksheet : undefined,
+  };
+}
 
-  const parsed = JSON.parse(jsonText);
-
-  if (
-    !parsed ||
-    typeof parsed.title !== "string" ||
-    !Array.isArray(parsed.sections)
-  ) {
+function safeParseContent(parsed: Record<string, unknown>): ProductContent {
+  if (typeof parsed.title !== "string" || !Array.isArray(parsed.sections)) {
     throw new Error("AI response was missing required fields.");
   }
-
   return {
     title: parsed.title,
-    subtitle: parsed.subtitle ?? "",
-    tagline: parsed.tagline ?? "",
-    introduction: parsed.introduction ?? "",
-    sections: parsed.sections.map(
-      (s: {
-        heading?: string;
-        body?: string;
-        bullets?: string[];
-        worksheet?: string[];
-      }) => ({
-        heading: s.heading ?? "",
-        body: s.body ?? "",
-        bullets: Array.isArray(s.bullets) ? s.bullets : undefined,
-        worksheet: Array.isArray(s.worksheet) ? s.worksheet : undefined,
-      })
-    ),
-    conclusion: parsed.conclusion ?? "",
-    callToAction: parsed.callToAction ?? "",
+    subtitle: typeof parsed.subtitle === "string" ? parsed.subtitle : "",
+    tagline: typeof parsed.tagline === "string" ? parsed.tagline : "",
+    introduction:
+      typeof parsed.introduction === "string" ? parsed.introduction : "",
+    sections: (parsed.sections as Parameters<typeof parseSection>[0][]).map(parseSection),
+    conclusion: typeof parsed.conclusion === "string" ? parsed.conclusion : "",
+    callToAction:
+      typeof parsed.callToAction === "string" ? parsed.callToAction : "",
+  };
+}
+
+async function generateSingleCallContent(
+  client: OpenAI,
+  idea: string,
+  type: ProductTypeId,
+  length: ProductLength
+): Promise<ProductContent> {
+  const lengthMeta = PRODUCT_LENGTHS[length];
+  const parsed = await callChatJSON(
+    client,
+    SYSTEM_PROMPT,
+    buildPrompt(idea, type, length),
+    lengthMeta.maxTokens,
+    "The response"
+  );
+  return safeParseContent(parsed);
+}
+
+// ---- Long-form (multi-call, chapter-by-chapter) generation ----
+//
+// A single chat completion tops out around 16k output tokens (~11-12k
+// words once JSON/heading/bullet overhead is accounted for) — nowhere near
+// enough for a genuine 50-150 page book. So above that ceiling, generation
+// happens in two passes instead of one call: first a cheap "outline" call
+// that plans the book (title/intro/conclusion + one heading+synopsis per
+// chapter, so chapters don't repeat each other's ground), then one AI call
+// PER CHAPTER to write that chapter's full body — batched with limited
+// concurrency (see CHAPTER_CONCURRENCY) so a 150-page book doesn't fire 20+
+// requests at once, and retried once per chapter before failing the whole
+// generation.
+
+type OutlineChapter = { heading: string; synopsis: string };
+type Outline = {
+  title: string;
+  subtitle: string;
+  tagline: string;
+  introduction: string;
+  conclusion: string;
+  callToAction: string;
+  chapters: OutlineChapter[];
+};
+
+function buildOutlinePrompt(
+  idea: string,
+  type: ProductTypeId,
+  length: ProductLength,
+  sectionCount: number
+): string {
+  const meta = PRODUCT_TYPES[type];
+  const lengthMeta = PRODUCT_LENGTHS[length];
+
+  return `You are a senior digital-product creator and professional nonfiction writer, planning the outline for a ${meta.label.toLowerCase()} based on this idea from the customer:
+
+"""
+${idea}
+"""
+
+This is the FIRST step of a two-step process — you are writing the outline only, not the full content. Each ${meta.sectionNoun} will be written separately afterward using the "synopsis" you provide here, so make each synopsis specific enough to guide that writing and make sure no two ${meta.sectionNoun}s cover the same ground — this is a real, in-depth, ${lengthMeta.targetPages}-page book, so the ${sectionCount} ${meta.sectionNoun}s need to build on each other and cover meaningfully distinct territory, not overlapping generalities.
+
+Respond with ONLY a single JSON object with this exact shape, no markdown fences, no commentary:
+{
+  "title": string,
+  "subtitle": string,
+  "tagline": string,
+  "introduction": string (${lengthMeta.introSentenceRange} sentences, sets up exactly what the reader will get and why it matters),
+  "chapters": [ { "heading": string, "synopsis": string (2-4 sentences describing specifically what this ${meta.sectionNoun} will cover and what makes it distinct from the others) } ] (exactly ${sectionCount} entries),
+  "conclusion": string (${lengthMeta.introSentenceRange} sentences, ties the whole book together),
+  "callToAction": string (short, encourages the reader to take the next step)
+}`;
+}
+
+function parseOutline(parsed: Record<string, unknown>, expectedCount: number): Outline {
+  if (
+    typeof parsed.title !== "string" ||
+    !Array.isArray(parsed.chapters) ||
+    parsed.chapters.length === 0
+  ) {
+    throw new Error("Outline response was missing required fields.");
+  }
+  const chapters = (parsed.chapters as { heading?: string; synopsis?: string }[])
+    .slice(0, expectedCount)
+    .map((c) => ({
+      heading: c.heading ?? "",
+      synopsis: c.synopsis ?? "",
+    }));
+  return {
+    title: parsed.title,
+    subtitle: typeof parsed.subtitle === "string" ? parsed.subtitle : "",
+    tagline: typeof parsed.tagline === "string" ? parsed.tagline : "",
+    introduction:
+      typeof parsed.introduction === "string" ? parsed.introduction : "",
+    conclusion: typeof parsed.conclusion === "string" ? parsed.conclusion : "",
+    callToAction:
+      typeof parsed.callToAction === "string" ? parsed.callToAction : "",
+    chapters,
+  };
+}
+
+function buildChapterPrompt(
+  idea: string,
+  type: ProductTypeId,
+  length: ProductLength,
+  bookTitle: string,
+  chapter: OutlineChapter,
+  chapterIndex: number,
+  totalChapters: number
+): string {
+  const meta = PRODUCT_TYPES[type];
+
+  return `You are a senior digital-product creator and professional nonfiction writer, writing ONE ${meta.sectionNoun} of a ${meta.label.toLowerCase()} called "${bookTitle}", based on this idea from the customer:
+
+"""
+${idea}
+"""
+
+This is ${meta.sectionNoun} ${chapterIndex + 1} of ${totalChapters}, titled "${chapter.heading}". Here is what this ${meta.sectionNoun} needs to cover: ${chapter.synopsis}
+
+Write ONLY this ${meta.sectionNoun} in full. It needs to read like part of a real, finished ${meta.label.toLowerCase()} a customer would pay for — specific, concrete, and genuinely useful — never a thin outline, never generic filler, and never placeholder text like "insert example here." Write with real expertise: concrete examples, specific numbers, scenarios, mini case-studies, or step-by-step detail wherever relevant. Do not pad with repetition — every sentence should add new information. Do not repeat ground already covered by other ${meta.sectionNoun}s in this book — stay focused on what was described above.
+
+Format requirements:
+${sectionFormatRules(type, length)}
+
+Respond with ONLY a single JSON object with this exact shape, no markdown fences, no commentary:
+{ "body": string, "bullets": string[]?, "worksheet": string[]? }`;
+}
+
+async function generateLongFormContent(
+  client: OpenAI,
+  idea: string,
+  type: ProductTypeId,
+  length: ProductLength
+): Promise<ProductContent> {
+  const sectionCount = resolveSectionCount(type, length);
+
+  const outlineParsed = await callChatJSON(
+    client,
+    SYSTEM_PROMPT,
+    buildOutlinePrompt(idea, type, length, sectionCount),
+    4000,
+    "The outline"
+  );
+  const outline = parseOutline(outlineParsed, sectionCount);
+  const lengthMeta = PRODUCT_LENGTHS[length];
+
+  const sections = await mapWithConcurrency(
+    outline.chapters,
+    CHAPTER_CONCURRENCY,
+    async (chapter, i) => {
+      try {
+        const parsed = await withRetry(() =>
+          callChatJSON(
+            client,
+            SYSTEM_PROMPT,
+            buildChapterPrompt(idea, type, length, outline.title, chapter, i, outline.chapters.length),
+            lengthMeta.chapterMaxTokens,
+            `Chapter ${i + 1}`
+          )
+        );
+        return parseSection({
+          heading: chapter.heading,
+          body: typeof parsed.body === "string" ? parsed.body : "",
+          bullets: Array.isArray(parsed.bullets) ? (parsed.bullets as string[]) : undefined,
+          worksheet: Array.isArray(parsed.worksheet) ? (parsed.worksheet as string[]) : undefined,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "generation failed";
+        throw new Error(`Chapter ${i + 1} ("${chapter.heading}"): ${message}`);
+      }
+    }
+  );
+
+  return {
+    title: outline.title,
+    subtitle: outline.subtitle,
+    tagline: outline.tagline,
+    introduction: outline.introduction,
+    sections,
+    conclusion: outline.conclusion,
+    callToAction: outline.callToAction,
   };
 }
 
@@ -120,42 +362,21 @@ export async function generateProductContent(
 
   if (client) {
     try {
-      const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-      const completion = await client.chat.completions.create({
-        model,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You generate structured digital-product content and reply with strict JSON only.",
-          },
-          { role: "user", content: buildPrompt(idea, type, length) },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.8,
-        max_tokens: maxTokensFor(length),
-      });
-
-      const choice = completion.choices[0];
-      if (choice?.finish_reason === "length") {
-        throw new Error(
-          `The response was cut off because it was too long for "${model}"'s output limit. Try a shorter Length setting, or configure a model with a larger output limit (OPENAI_MODEL).`
-        );
-      }
-
-      const raw = choice?.message?.content;
-      if (!raw) throw new Error("Empty response from AI model.");
-      return { content: safeParseContent(raw), mode: "ai" };
+      const lengthMeta = PRODUCT_LENGTHS[length];
+      const content = lengthMeta.multiCall
+        ? await generateLongFormContent(client, idea, type, length)
+        : await generateSingleCallContent(client, idea, type, length);
+      return { content, mode: "ai" };
     } catch (err) {
       // The user supplied their own key, so a failure here is theirs to
-      // know about (bad key, no quota, cut-off response, etc.) — don't
-      // paper over it with silent mock content, which would look like a
-      // real generation.
+      // know about (bad key, no quota, cut-off response, a failed chapter,
+      // etc.) — don't paper over it with silent mock content, which would
+      // look like a real generation.
       console.error("AI generation failed with user-supplied key:", err);
       const message =
         err instanceof Error ? err.message : "AI generation failed.";
       throw new Error(
-        message.includes("cut off")
+        message.includes("cut off") || message.startsWith("Chapter ")
           ? message
           : `Your OpenAI API key was rejected or the request failed: ${message}. Check your key in Settings.`
       );
@@ -278,8 +499,11 @@ function buildMockContent(
   const sectionCount = resolveSectionCount(type, length);
   const topic = idea.trim() || "your idea";
   const capitalized = topic.charAt(0).toUpperCase() + topic.slice(1);
-  const paragraphTarget =
-    lengthMeta.paragraphCount === "2" ? 2 : lengthMeta.paragraphCount === "3" ? 3 : 5;
+  // The demo paragraph/bullet pools below only have 5-8 unique entries, so
+  // this caps out gracefully via .slice() even for the biggest tiers —
+  // mock content is just a functional placeholder, not meant to actually
+  // hit the real word-count target the way AI-generated content does.
+  const paragraphTarget = parseFirstInt(lengthMeta.paragraphCount, 3);
 
   const titlePool = [
     "Getting clear on the goal",
@@ -322,7 +546,7 @@ function buildMockContent(
       `Note one thing you'd do differently next time`,
       `Ask someone you trust for honest feedback`,
     ];
-    const bulletCount = lengthMeta.id === "short" ? 3 : lengthMeta.id === "long" ? 7 : 5;
+    const bulletCount = parseFirstInt(lengthMeta.bulletRange, 5);
 
     return {
       heading: `${meta.sectionNoun.charAt(0).toUpperCase() + meta.sectionNoun.slice(1)} ${
