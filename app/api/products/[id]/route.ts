@@ -4,8 +4,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { ProductContent, ProductTypeId, PRODUCT_TYPES } from "@/lib/productTypes";
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
-import { readCoverImageDataUri, deleteCoverImage } from "@/lib/cover";
+import { readCoverImageDataUri, readCoverImageBuffer, deleteCoverImage } from "@/lib/cover";
 import { deleteInfographicImage } from "@/lib/screenshot";
+import { generateEpub, deleteEpub } from "@/lib/epub";
 import fs from "fs";
 import path from "path";
 
@@ -114,11 +115,19 @@ export async function PATCH(
     const productId = Number(id);
     await renderHtmlToPdf(html, productId);
 
+    // Keep the Kindle EPUB in sync with edited content too.
+    const epubFilename = await generateEpub(
+      content,
+      product.product_type as ProductTypeId,
+      readCoverImageBuffer(product.cover_image_path),
+      productId
+    );
+
     db.prepare(
       `UPDATE products
-       SET title = ?, content_json = ?, html = ?, pdf_path = ?, updated_at = datetime('now')
+       SET title = ?, content_json = ?, html = ?, pdf_path = ?, epub_path = ?, updated_at = datetime('now')
        WHERE id = ?`
-    ).run(content.title, JSON.stringify(content), html, `${productId}.pdf`, productId);
+    ).run(content.title, JSON.stringify(content), html, `${productId}.pdf`, epubFilename, productId);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -156,6 +165,7 @@ export async function DELETE(
   }
   deleteCoverImage(product.cover_image_path);
   deleteInfographicImage(product.asset_path);
+  deleteEpub(product.epub_path);
 
   db.prepare("DELETE FROM products WHERE id = ?").run(id);
   return NextResponse.json({ ok: true });

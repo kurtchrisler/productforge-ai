@@ -23,6 +23,16 @@ export function readCoverImageDataUri(filename: string | null): string | null {
   return `data:image/png;base64,${buffer.toString("base64")}`;
 }
 
+// Raw bytes (not a data: URI) — used when embedding the cover as its own
+// binary file inside a package format like EPUB, rather than inlining it
+// into an HTML string.
+export function readCoverImageBuffer(filename: string | null): Buffer | null {
+  if (!filename) return null;
+  const filePath = path.join(coverDir, filename);
+  if (!fs.existsSync(filePath)) return null;
+  return fs.readFileSync(filePath);
+}
+
 export function deleteCoverImage(filename: string | null): void {
   if (!filename) return;
   const filePath = path.join(coverDir, filename);

@@ -83,6 +83,14 @@ export default async function ProductPage({
                 Download PDF
               </a>
             )}
+            {kind === "document" && product.epub_path && (
+              <a
+                href={`/api/products/${product.id}/epub`}
+                className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
+              >
+                Download for Kindle (.epub)
+              </a>
+            )}
             {supportsCoverArt && product.cover_image_path && (
               <a
                 href={`/api/products/${product.id}/cover`}

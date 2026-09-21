@@ -21,7 +21,8 @@ import { renderInfographicHtml, INFOGRAPHIC_WIDTH, INFOGRAPHIC_HEIGHT } from "@/
 import { renderHtmlToPdf } from "@/lib/pdf";
 import { renderHtmlToPng } from "@/lib/screenshot";
 import { decryptSecret } from "@/lib/crypto";
-import { readCoverImageDataUri } from "@/lib/cover";
+import { readCoverImageDataUri, readCoverImageBuffer } from "@/lib/cover";
+import { generateEpub } from "@/lib/epub";
 
 export async function POST(req: NextRequest) {
   const db = getDb();
@@ -201,9 +202,20 @@ export async function POST(req: NextRequest) {
     const html = renderProductHtml(content, productType, coverImageDataUri);
     await renderHtmlToPdf(html, productId);
 
+    // Kindle-ready EPUB download (document-kind products only — the
+    // reflowable-text format KDP actually wants). No AI call needed, it's
+    // just a repackaging of the same content, so it's cheap to build
+    // eagerly alongside the PDF rather than on first download.
+    const epubFilename = await generateEpub(
+      content,
+      productType,
+      readCoverImageBuffer(coverImagePath),
+      productId
+    );
+
     db.prepare(
       `UPDATE products
-       SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
+       SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, epub_path = ?, updated_at = datetime('now')
        WHERE id = ?`
     ).run(
       content.title,
@@ -212,6 +224,7 @@ export async function POST(req: NextRequest) {
       `${productId}.pdf`,
       coverImagePath,
       coverError,
+      epubFilename,
       productId
     );
 

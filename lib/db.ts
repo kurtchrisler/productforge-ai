@@ -91,6 +91,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   if (!productColumns.some((c) => c.name === "asset_path")) {
     database.exec(`ALTER TABLE products ADD COLUMN asset_path TEXT`);
   }
+  // Migration: Kindle-ready EPUB download (document-kind products only).
+  if (!productColumns.some((c) => c.name === "epub_path")) {
+    database.exec(`ALTER TABLE products ADD COLUMN epub_path TEXT`);
+  }
 
   return database;
 }
@@ -133,6 +137,7 @@ export type Product = {
   cover_error: string | null;
   difficulty: string | null;
   asset_path: string | null;
+  epub_path: string | null;
   title: string | null;
   status: "pending" | "generating" | "ready" | "error";
   content_json: string | null;

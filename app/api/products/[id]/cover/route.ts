@@ -15,7 +15,8 @@ import { generateCrossword } from "@/lib/crosswordGenerator";
 import { generateWordSearch } from "@/lib/wordSearchGenerator";
 import { renderPuzzleBookHtml, GeneratedPuzzle } from "@/lib/renderPuzzles";
 import { renderHtmlToPdf } from "@/lib/pdf";
-import { readCoverImageDataUri } from "@/lib/cover";
+import { readCoverImageDataUri, readCoverImageBuffer } from "@/lib/cover";
+import { generateEpub } from "@/lib/epub";
 import { decryptSecret } from "@/lib/crypto";
 import fs from "fs";
 import path from "path";
@@ -157,11 +158,19 @@ export async function POST(
     const html = renderProductHtml(content, productType, coverImageDataUri);
     await renderHtmlToPdf(html, productId);
 
+    // The Kindle EPUB embeds the cover too, so keep it in sync.
+    const epubFilename = await generateEpub(
+      content,
+      productType,
+      readCoverImageBuffer(cover.path),
+      productId
+    );
+
     db.prepare(
       `UPDATE products
-       SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
+       SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, epub_path = ?, updated_at = datetime('now')
        WHERE id = ?`
-    ).run(html, `${productId}.pdf`, cover.path, cover.error, productId);
+    ).run(html, `${productId}.pdf`, cover.path, cover.error, epubFilename, productId);
 
     if (cover.error) {
       return NextResponse.json({ ok: false, error: cover.error }, { status: 502 });
