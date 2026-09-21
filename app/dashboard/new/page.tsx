@@ -12,7 +12,10 @@ import {
   PUZZLE_COUNTS,
   PUZZLE_DIFFICULTY_LIST,
   ProductDifficulty,
+  isAllowedForMembership,
 } from "@/lib/productTypes";
+
+type MembershipLevel = "none" | "standard" | "pro";
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -24,6 +27,7 @@ export default function NewProductPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const [membership, setMembership] = useState<MembershipLevel | null>(null);
 
   const kind = PRODUCT_TYPES[productType].kind;
 
@@ -32,7 +36,31 @@ export default function NewProductPage() {
       .then((res) => res.json())
       .then((data) => setHasKey(Boolean(data.hasKey)))
       .catch(() => setHasKey(null));
+
+    fetch("/api/license")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.membershipLevel) setMembership(data.membershipLevel);
+      })
+      .catch(() => setMembership(null));
   }, []);
+
+  // Once we know the member's tier, steer the default selections away from
+  // anything locked for them (e.g. a Standard member landing with the
+  // ebook/50-page defaults is fine, but we don't want a stale selection
+  // left on something they can no longer submit).
+  useEffect(() => {
+    if (!membership) return;
+    if (!isAllowedForMembership(productType, length, membership)) {
+      if (!isAllowedForMembership(productType, "50", membership)) {
+        setProductType("ebook");
+        setLength("50");
+      } else {
+        setLength("50");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [membership]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,6 +103,25 @@ export default function NewProductPage() {
         and typeset a complete, downloadable product.
       </p>
 
+      {membership === "none" && (
+        <div className="mb-8 rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-4">
+          <p className="text-sm font-semibold text-indigo-900">
+            Activate your license to start creating
+          </p>
+          <p className="text-sm text-indigo-800 mt-1 leading-relaxed">
+            We couldn&apos;t find an active ProductGenie AI license on this
+            account. Head to Settings, enter the email you purchased with,
+            and click &quot;Refresh my license&quot;.
+          </p>
+          <Link
+            href="/dashboard/settings"
+            className="inline-block mt-3 text-sm font-semibold text-indigo-700 hover:underline"
+          >
+            Go to Settings →
+          </Link>
+        </div>
+      )}
+
       {hasKey === false && (
         <div className="mb-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between gap-4">
           <span>
@@ -98,17 +145,32 @@ export default function NewProductPage() {
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
             {PRODUCT_TYPE_LIST.map((pt) => {
               const selected = productType === pt.id;
+              const locked =
+                membership != null &&
+                membership !== "none" &&
+                pt.minMembership === "pro" &&
+                membership !== "pro";
               return (
                 <button
                   key={pt.id}
                   type="button"
-                  onClick={() => setProductType(pt.id)}
-                  className={`rounded-lg border p-3 text-left transition ${
+                  onClick={() => {
+                    if (locked) return;
+                    setProductType(pt.id);
+                  }}
+                  className={`relative rounded-lg border p-3 text-left transition ${
                     selected
                       ? "border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50"
-                      : "border-zinc-200 bg-white hover:border-zinc-300"
+                      : locked
+                        ? "border-zinc-200 bg-zinc-50 opacity-60 cursor-not-allowed"
+                        : "border-zinc-200 bg-white hover:border-zinc-300"
                   }`}
                 >
+                  {locked && (
+                    <span className="absolute top-2 right-2 text-[10px] font-bold uppercase tracking-wide bg-indigo-600 text-white px-1.5 py-0.5 rounded">
+                      Pro
+                    </span>
+                  )}
                   <div className="text-xl">{pt.emoji}</div>
                   <div className="text-sm font-semibold text-zinc-900 mt-1">
                     {pt.label}
@@ -169,17 +231,32 @@ export default function NewProductPage() {
             <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
               {PRODUCT_LENGTH_LIST.map((l) => {
                 const selected = length === l.id;
+                const locked =
+                  membership != null &&
+                  membership !== "none" &&
+                  l.minMembership === "pro" &&
+                  membership !== "pro";
                 return (
                   <button
                     key={l.id}
                     type="button"
-                    onClick={() => setLength(l.id)}
-                    className={`rounded-lg border p-3 text-left transition ${
+                    onClick={() => {
+                      if (locked) return;
+                      setLength(l.id);
+                    }}
+                    className={`relative rounded-lg border p-3 text-left transition ${
                       selected
                         ? "border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50"
-                        : "border-zinc-200 bg-white hover:border-zinc-300"
+                        : locked
+                          ? "border-zinc-200 bg-zinc-50 opacity-60 cursor-not-allowed"
+                          : "border-zinc-200 bg-white hover:border-zinc-300"
                     }`}
                   >
+                    {locked && (
+                      <span className="absolute top-2 right-2 text-[10px] font-bold uppercase tracking-wide bg-indigo-600 text-white px-1.5 py-0.5 rounded">
+                        Pro
+                      </span>
+                    )}
                     <div className="text-sm font-semibold text-zinc-900">
                       {l.label}
                     </div>
@@ -197,6 +274,16 @@ export default function NewProductPage() {
                 Page counts are approximate. Books over ~25 pages are written
                 chapter by chapter, so they take longer to generate — usually
                 1-4 minutes depending on length.
+              </p>
+            )}
+            {membership === "standard" && (
+              <p className="text-xs text-indigo-600 mt-2">
+                Crossword puzzles, word search puzzles, infographics, and the
+                75/100/150-page tiers are Pro features.{" "}
+                <Link href="/dashboard/settings" className="font-semibold hover:underline">
+                  Upgrade to Pro
+                </Link>{" "}
+                to unlock them.
               </p>
             )}
           </div>
@@ -238,13 +325,17 @@ export default function NewProductPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || membership === "none"}
           className="w-full sm:w-auto self-start px-6 py-3 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition disabled:opacity-50 flex items-center gap-2"
         >
           {loading && (
             <span className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
           )}
-          {loading ? "Generating your product…" : "Generate product"}
+          {membership === "none"
+            ? "Activate your license to continue"
+            : loading
+              ? "Generating your product…"
+              : "Generate product"}
         </button>
         {loading && (
           <p className="text-xs text-zinc-400 -mt-4">

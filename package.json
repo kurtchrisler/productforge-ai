@@ -18,7 +18,8 @@
     "openai": "^7.15.0",
     "playwright": "^1.63.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

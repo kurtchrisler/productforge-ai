@@ -15,6 +15,18 @@ export async function GET(
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
+
+  if (!user.kdp_accelerator) {
+    return NextResponse.json(
+      {
+        error:
+          "The Kindle (.epub) download is part of the KDP Accelerator add-on. Head to Settings to purchase it.",
+        code: "kdp_accelerator_required",
+      },
+      { status: 403 }
+    );
+  }
+
   const { id } = await params;
   const product = db
     .prepare("SELECT * FROM products WHERE id = ? AND user_id = ?")

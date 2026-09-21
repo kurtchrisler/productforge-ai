@@ -42,6 +42,25 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-5xl mx-auto w-full px-6 py-10">
+      {user.membership_level === "none" && (
+        <div className="mb-8 rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-4">
+          <p className="text-sm font-semibold text-indigo-900">
+            Activate your license to start creating
+          </p>
+          <p className="text-sm text-indigo-800 mt-1 leading-relaxed">
+            We couldn&apos;t find an active ProductGenie AI license on this
+            account. Head to Settings, enter the email you purchased with,
+            and click &quot;Refresh my license&quot;.
+          </p>
+          <Link
+            href="/dashboard/settings"
+            className="inline-block mt-3 text-sm font-semibold text-indigo-700 hover:underline"
+          >
+            Go to Settings →
+          </Link>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">

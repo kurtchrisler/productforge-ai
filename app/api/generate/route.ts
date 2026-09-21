@@ -9,6 +9,8 @@ import {
   PUZZLE_COUNTS,
   PUZZLE_DIFFICULTIES,
   ProductTypeId,
+  isAllowedForMembership,
+  requiredMembershipFor,
 } from "@/lib/productTypes";
 import { generateProductContent, generateAndSaveCover } from "@/lib/ai";
 import { generatePuzzleContent } from "@/lib/puzzleContent";
@@ -52,6 +54,38 @@ export async function POST(req: NextRequest) {
     typeof difficulty === "string" && isProductDifficulty(difficulty) ? difficulty : "medium";
   const resolvedInstructions =
     typeof instructions === "string" ? instructions.trim().slice(0, 2000) : "";
+
+  // Membership gating -- enforced here regardless of what the dashboard UI
+  // shows/hides, since a request could otherwise bypass it entirely (e.g.
+  // a crafted request, or a stale page from before an account was
+  // downgraded). 'none' means no active license on file at all: blocked
+  // outright. 'standard'/'pro' are checked against this exact
+  // type+length combination -- see requiredMembershipFor in productTypes.ts
+  // for how Standard vs Pro is decided.
+  if (user.membership_level === "none") {
+    return NextResponse.json(
+      {
+        error:
+          "Activate your ProductGenie AI license to start creating. Head to Settings and enter the email you purchased with, or click \"Refresh my license\" if you just bought it.",
+        code: "no_license",
+      },
+      { status: 403 }
+    );
+  }
+  if (!isAllowedForMembership(productType, resolvedLength, user.membership_level)) {
+    const required = requiredMembershipFor(productType, resolvedLength);
+    return NextResponse.json(
+      {
+        error:
+          required === "pro"
+            ? "That product type or page length is a Pro feature. Upgrade to ProductGenie AI Pro to unlock it."
+            : "Upgrade required to create this product.",
+        code: "upgrade_required",
+        requiredMembership: required,
+      },
+      { status: 403 }
+    );
+  }
 
   const kind = PRODUCT_TYPES[productType].kind;
 

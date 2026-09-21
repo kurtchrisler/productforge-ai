@@ -84,12 +84,22 @@ export default async function ProductPage({
               </a>
             )}
             {kind === "document" && product.epub_path && (
-              <a
-                href={`/api/products/${product.id}/epub`}
-                className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
-              >
-                Download for Kindle (.epub)
-              </a>
+              user.kdp_accelerator ? (
+                <a
+                  href={`/api/products/${product.id}/epub`}
+                  className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
+                >
+                  Download for Kindle (.epub)
+                </a>
+              ) : (
+                <Link
+                  href="/dashboard/settings"
+                  title="Part of the KDP Accelerator add-on"
+                  className="px-5 py-2.5 rounded-lg border border-dashed border-zinc-300 text-zinc-400 font-semibold text-sm hover:border-zinc-400 hover:text-zinc-500 transition whitespace-nowrap"
+                >
+                  Download for Kindle (.epub) 🔒
+                </Link>
+              )
             )}
             {supportsCoverArt && product.cover_image_path && (
               <a
@@ -98,6 +108,24 @@ export default async function ProductPage({
               >
                 Download cover
               </a>
+            )}
+            {supportsCoverArt && product.cover_image_path && (
+              user.kdp_accelerator ? (
+                <a
+                  href={`/api/products/${product.id}/kindle-cover`}
+                  className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
+                >
+                  Download Kindle cover (.jpg)
+                </a>
+              ) : (
+                <Link
+                  href="/dashboard/settings"
+                  title="Part of the KDP Accelerator add-on"
+                  className="px-5 py-2.5 rounded-lg border border-dashed border-zinc-300 text-zinc-400 font-semibold text-sm hover:border-zinc-400 hover:text-zinc-500 transition whitespace-nowrap"
+                >
+                  Download Kindle cover (.jpg) 🔒
+                </Link>
+              )
             )}
             {kind === "document" && (
               <ProductEditor
@@ -116,6 +144,24 @@ export default async function ProductPage({
           </div>
         )}
       </div>
+
+      {!user.kdp_accelerator &&
+        product.status === "ready" &&
+        ((kind === "document" && product.epub_path) ||
+          (supportsCoverArt && product.cover_image_path)) && (
+          <div className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 flex items-center justify-between gap-4">
+            <span>
+              🔒 Kindle-ready downloads (.epub and the Kindle cover .jpg) are
+              part of the KDP Accelerator add-on.
+            </span>
+            <Link
+              href="/dashboard/settings"
+              className="whitespace-nowrap font-semibold hover:underline"
+            >
+              Upgrade →
+            </Link>
+          </div>
+        )}
 
       {supportsCoverArt &&
         product.status === "ready" &&

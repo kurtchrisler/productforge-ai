@@ -1,3 +1,5 @@
+import type { MembershipLevel } from "./license";
+
 export type ProductTypeId =
   | "ebook"
   | "guide"
@@ -33,6 +35,11 @@ export type ProductTypeMeta = {
   sectionCountHint: number;
   worksheetHint: boolean; // whether worksheet-style fill-in blocks make sense
   checklistStyle: boolean; // render bullets as checkboxes instead of dots
+  // Lowest membership tier that can create this product type. 'standard'
+  // means Standard-and-up (i.e. both tiers); 'pro' means Pro-only. Per
+  // Kurt's spec: ebook/guide/planner/workbook/template/checklist are
+  // Standard; crossword/word_search/infographic are Pro additions.
+  minMembership: "standard" | "pro";
 };
 
 export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
@@ -50,6 +57,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: 1,
     worksheetHint: false,
     checklistStyle: false,
+    minMembership: "standard",
   },
   guide: {
     id: "guide",
@@ -65,6 +73,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: 1,
     worksheetHint: false,
     checklistStyle: false,
+    minMembership: "standard",
   },
   planner: {
     id: "planner",
@@ -80,6 +89,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: 0,
     worksheetHint: true,
     checklistStyle: false,
+    minMembership: "standard",
   },
   workbook: {
     id: "workbook",
@@ -95,6 +105,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: 0,
     worksheetHint: true,
     checklistStyle: false,
+    minMembership: "standard",
   },
   template: {
     id: "template",
@@ -110,6 +121,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: -2,
     worksheetHint: true,
     checklistStyle: false,
+    minMembership: "standard",
   },
   checklist: {
     id: "checklist",
@@ -125,6 +137,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: -1,
     worksheetHint: false,
     checklistStyle: true,
+    minMembership: "standard",
   },
   crossword: {
     id: "crossword",
@@ -140,6 +153,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: 0,
     worksheetHint: false,
     checklistStyle: false,
+    minMembership: "pro",
   },
   word_search: {
     id: "word_search",
@@ -155,6 +169,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: 0,
     worksheetHint: false,
     checklistStyle: false,
+    minMembership: "pro",
   },
   infographic: {
     id: "infographic",
@@ -170,6 +185,7 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     sectionCountHint: 0,
     worksheetHint: false,
     checklistStyle: false,
+    minMembership: "pro",
   },
 };
 
@@ -212,6 +228,9 @@ export type ProductLengthMeta = {
   maxTokens: number;
   // Output-token budget PER CHAPTER for a multi-call generation.
   chapterMaxTokens: number;
+  // Lowest membership tier that can generate at this page length. Per
+  // Kurt's spec: 10/25/50 pages are Standard; 75/100/150 are Pro-only.
+  minMembership: "standard" | "pro";
 };
 
 export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
@@ -229,6 +248,7 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     multiCall: false,
     maxTokens: 7000,
     chapterMaxTokens: 0,
+    minMembership: "standard",
   },
   "25": {
     id: "25",
@@ -244,6 +264,7 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     multiCall: false,
     maxTokens: 16000,
     chapterMaxTokens: 0,
+    minMembership: "standard",
   },
   "50": {
     id: "50",
@@ -259,6 +280,7 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     multiCall: true,
     maxTokens: 0,
     chapterMaxTokens: 4000,
+    minMembership: "standard",
   },
   "75": {
     id: "75",
@@ -274,6 +296,7 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     multiCall: true,
     maxTokens: 0,
     chapterMaxTokens: 4600,
+    minMembership: "pro",
   },
   "100": {
     id: "100",
@@ -289,6 +312,7 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     multiCall: true,
     maxTokens: 0,
     chapterMaxTokens: 5300,
+    minMembership: "pro",
   },
   "150": {
     id: "150",
@@ -304,6 +328,7 @@ export const PRODUCT_LENGTHS: Record<ProductLength, ProductLengthMeta> = {
     multiCall: true,
     maxTokens: 0,
     chapterMaxTokens: 6500,
+    minMembership: "pro",
   },
 };
 
@@ -349,6 +374,55 @@ export function resolveSectionCount(
   const base = PRODUCT_LENGTHS[length].sectionCount;
   const delta = PRODUCT_TYPES[type].sectionCountHint;
   return Math.min(30, Math.max(3, base + delta));
+}
+
+// ---- Standard/Pro membership gating ----
+//
+// Kurt's spec:
+//   Standard: ebook, guide, planner, workbook, template, checklist -- at
+//             the 10/25/50 page lengths.
+//   Pro:      everything in Standard, PLUS crossword/word_search/
+//             infographic, PLUS the 75/100/150 page lengths.
+// So a request is allowed when the customer's tier is at or above BOTH the
+// product type's minimum tier AND the page length's minimum tier -- e.g. a
+// Standard member cannot make a 100-page ebook (blocked by length) or a
+// 10-page crossword book (blocked by type), even though each limit on its
+// own would allow it.
+const MEMBERSHIP_RANK: Record<MembershipLevel, number> = {
+  none: 0,
+  standard: 1,
+  pro: 2,
+};
+
+export function membershipMeetsRequirement(
+  membership: MembershipLevel,
+  required: "standard" | "pro"
+): boolean {
+  return MEMBERSHIP_RANK[membership] >= MEMBERSHIP_RANK[required];
+}
+
+// The single tier a customer would need to create this exact
+// type+length combination -- whichever of the two requirements is higher.
+export function requiredMembershipFor(
+  type: ProductTypeId,
+  length: ProductLength
+): "standard" | "pro" {
+  const typeReq = PRODUCT_TYPES[type].minMembership;
+  const lengthReq = PRODUCT_LENGTHS[length].minMembership;
+  return MEMBERSHIP_RANK[typeReq] >= MEMBERSHIP_RANK[lengthReq]
+    ? typeReq
+    : lengthReq;
+}
+
+export function isAllowedForMembership(
+  type: ProductTypeId,
+  length: ProductLength,
+  membership: MembershipLevel
+): boolean {
+  return membershipMeetsRequirement(
+    membership,
+    requiredMembershipFor(type, length)
+  );
 }
 
 // Shared content shape produced by the AI (or mock) generator and consumed

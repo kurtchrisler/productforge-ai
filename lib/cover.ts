@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import sharp from "sharp";
 
 const coverDir = path.join(process.cwd(), "data", "covers");
 
@@ -39,4 +40,17 @@ export function deleteCoverImage(filename: string | null): void {
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }
+}
+
+// Amazon KDP requires cover art as a JPG (our cover is generated/stored as
+// PNG for the PDF/preview pipeline) — this converts on demand rather than
+// storing a second file on disk, so it's always derived from whatever the
+// current cover actually is (including after a "regenerate cover"). JPEG
+// has no alpha channel, so any transparency is flattened onto a white
+// background first rather than silently turning black.
+export async function convertCoverToKindleJpeg(pngBuffer: Buffer): Promise<Buffer> {
+  return sharp(pngBuffer)
+    .flatten({ background: "#ffffff" })
+    .jpeg({ quality: 92 })
+    .toBuffer();
 }
