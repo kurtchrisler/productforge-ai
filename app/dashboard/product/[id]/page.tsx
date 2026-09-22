@@ -10,6 +10,7 @@ import {
   normalizeLength,
   PUZZLE_DIFFICULTIES,
   ProductDifficulty,
+  membershipMeetsRequirement,
 } from "@/lib/productTypes";
 import ProductEditor from "@/components/ProductEditor";
 import CoverRegenerateButton from "@/components/CoverRegenerateButton";
@@ -35,6 +36,7 @@ export default async function ProductPage({
   const meta = PRODUCT_TYPES[product.product_type as ProductTypeId];
   const kind = meta?.kind;
   const supportsCoverArt = kind === "document" || kind === "puzzle";
+  const isPro = membershipMeetsRequirement(user.membership_level, "pro");
   const lengthMeta = PRODUCT_LENGTHS[normalizeLength(product.length)];
   const difficultyMeta = product.difficulty
     ? PUZZLE_DIFFICULTIES[product.difficulty as ProductDifficulty]
@@ -127,6 +129,24 @@ export default async function ProductPage({
                 </Link>
               )
             )}
+            {kind === "document" && product.pdf_path && (
+              isPro ? (
+                <a
+                  href={`/api/products/${product.id}/saleskit`}
+                  className="px-5 py-2.5 rounded-lg border border-zinc-300 text-zinc-700 font-semibold text-sm hover:bg-zinc-50 transition whitespace-nowrap"
+                >
+                  Download Sales Kit
+                </a>
+              ) : (
+                <Link
+                  href="/dashboard/settings"
+                  title="Sales page + download page kit is a Pro feature"
+                  className="px-5 py-2.5 rounded-lg border border-dashed border-zinc-300 text-zinc-400 font-semibold text-sm hover:border-zinc-400 hover:text-zinc-500 transition whitespace-nowrap"
+                >
+                  Download Sales Kit 🔒
+                </Link>
+              )
+            )}
             {kind === "document" && (
               <ProductEditor
                 productId={product.id}
@@ -162,6 +182,21 @@ export default async function ProductPage({
             </Link>
           </div>
         )}
+
+      {!isPro && kind === "document" && product.status === "ready" && product.pdf_path && (
+        <div className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 flex items-center justify-between gap-4">
+          <span>
+            🔒 A ready-to-upload sales page + download page for this product
+            is a Pro feature.
+          </span>
+          <Link
+            href="/dashboard/settings"
+            className="whitespace-nowrap font-semibold hover:underline"
+          >
+            Upgrade →
+          </Link>
+        </div>
+      )}
 
       {supportsCoverArt &&
         product.status === "ready" &&

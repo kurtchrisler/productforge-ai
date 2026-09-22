@@ -215,9 +215,10 @@ export default function SettingsPage() {
             </div>
             {license?.membershipLevel === "standard" && (
               <p className="text-xs text-zinc-500 mt-1">
-                Want crossword puzzles, word search puzzles, infographics, and
-                the 75/100/150-page tiers? Upgrade to Pro, then come back and
-                click &quot;Refresh my license&quot;.
+                Want crossword puzzles, word search puzzles, infographics,
+                the 75/100/150-page tiers, and a one-click sales page +
+                download page for every product? Upgrade to Pro, then come
+                back and click &quot;Refresh my license&quot;.
               </p>
             )}
             {license && !license.kdpAccelerator && (
