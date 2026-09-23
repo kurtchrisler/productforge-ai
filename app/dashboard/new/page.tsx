@@ -10,6 +10,7 @@ import {
   PRODUCT_LENGTH_LIST,
   ProductLength,
   PUZZLE_COUNTS,
+  COLORING_PAGE_COUNTS,
   PUZZLE_DIFFICULTY_LIST,
   ProductDifficulty,
   isAllowedForMembership,
@@ -85,12 +86,12 @@ export default function NewProductPage() {
     }
   }
 
-  const ideaLabel = kind === "infographic" ? "Your topic" : "Your idea";
+  const ideaLabel = kind === "coloring" ? "Your theme" : "Your idea";
   const ideaPlaceholder =
     kind === "puzzle"
       ? "e.g. National parks of the United States"
-      : kind === "infographic"
-        ? "e.g. Why morning routines matter"
+      : kind === "coloring"
+        ? "e.g. Cute forest animals for kids"
         : "e.g. A 30-day meal-prep plan for busy parents who want to eat healthier without spending hours cooking";
 
   return (
@@ -203,7 +204,7 @@ export default function NewProductPage() {
           </p>
         </div>
 
-        {kind === "infographic" && (
+        {kind === "coloring" && (
           <div>
             <label className="text-sm font-semibold text-zinc-800">
               Instructions{" "}
@@ -213,81 +214,81 @@ export default function NewProductPage() {
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
               rows={3}
-              placeholder="e.g. Focus on beginner-friendly tips, use a motivational tone, include a stat about consistency"
+              placeholder="e.g. Keep the drawings simple and toddler-friendly, one big subject per page"
               className="mt-2 w-full rounded-lg border border-zinc-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
             <p className="text-xs text-zinc-400 mt-1">
-              Anything specific you want emphasized, a tone to use, or facts
-              to include.
+              Anything specific you want emphasized, a style to use, or
+              subjects to include.
             </p>
           </div>
         )}
 
-        {kind !== "infographic" && (
-          <div>
-            <label className="text-sm font-semibold text-zinc-800">
-              {kind === "puzzle" ? "Length" : "Length (target page count)"}
-            </label>
-            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {PRODUCT_LENGTH_LIST.map((l) => {
-                const selected = length === l.id;
-                const locked =
-                  membership != null &&
-                  membership !== "none" &&
-                  l.minMembership === "pro" &&
-                  membership !== "pro";
-                return (
-                  <button
-                    key={l.id}
-                    type="button"
-                    onClick={() => {
-                      if (locked) return;
-                      setLength(l.id);
-                    }}
-                    className={`relative rounded-lg border p-3 text-left transition ${
-                      selected
-                        ? "border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50"
-                        : locked
-                          ? "border-zinc-200 bg-zinc-50 opacity-60 cursor-not-allowed"
-                          : "border-zinc-200 bg-white hover:border-zinc-300"
-                    }`}
-                  >
-                    {locked && (
-                      <span className="absolute top-2 right-2 text-[10px] font-bold uppercase tracking-wide bg-indigo-600 text-white px-1.5 py-0.5 rounded">
-                        Pro
-                      </span>
-                    )}
-                    <div className="text-sm font-semibold text-zinc-900">
-                      {l.label}
-                    </div>
-                    <div className="text-xs text-zinc-500 mt-1 leading-snug">
-                      {kind === "puzzle"
-                        ? `${PUZZLE_COUNTS[l.id]} puzzles`
+        <div>
+          <label className="text-sm font-semibold text-zinc-800">
+            {kind === "puzzle" ? "Length" : "Length (target page count)"}
+          </label>
+          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {PRODUCT_LENGTH_LIST.map((l) => {
+              const selected = length === l.id;
+              const locked =
+                membership != null &&
+                membership !== "none" &&
+                l.minMembership === "pro" &&
+                membership !== "pro";
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => {
+                    if (locked) return;
+                    setLength(l.id);
+                  }}
+                  className={`relative rounded-lg border p-3 text-left transition ${
+                    selected
+                      ? "border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50"
+                      : locked
+                        ? "border-zinc-200 bg-zinc-50 opacity-60 cursor-not-allowed"
+                        : "border-zinc-200 bg-white hover:border-zinc-300"
+                  }`}
+                >
+                  {locked && (
+                    <span className="absolute top-2 right-2 text-[10px] font-bold uppercase tracking-wide bg-indigo-600 text-white px-1.5 py-0.5 rounded">
+                      Pro
+                    </span>
+                  )}
+                  <div className="text-sm font-semibold text-zinc-900">
+                    {l.label}
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-1 leading-snug">
+                    {kind === "puzzle"
+                      ? `${PUZZLE_COUNTS[l.id]} puzzles`
+                      : kind === "coloring"
+                        ? `${COLORING_PAGE_COUNTS[l.id]} coloring pages`
                         : l.description}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {kind === "document" && (
-              <p className="text-xs text-zinc-400 mt-2">
-                Page counts are approximate. Books over ~25 pages are written
-                chapter by chapter, so they take longer to generate — usually
-                1-4 minutes depending on length.
-              </p>
-            )}
-            {membership === "standard" && (
-              <p className="text-xs text-indigo-600 mt-2">
-                Crossword puzzles, word search puzzles, infographics, and the
-                75/100/150-page tiers are Pro features.{" "}
-                <Link href="/dashboard/settings" className="font-semibold hover:underline">
-                  Upgrade to Pro
-                </Link>{" "}
-                to unlock them.
-              </p>
-            )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        )}
+          {kind === "document" && (
+            <p className="text-xs text-zinc-400 mt-2">
+              Page counts are approximate. Books over ~25 pages are written
+              chapter by chapter, so they take longer to generate — usually
+              1-4 minutes depending on length.
+            </p>
+          )}
+          {membership === "standard" && (
+            <p className="text-xs text-indigo-600 mt-2">
+              Crossword puzzles, word search puzzles, coloring books, and the
+              75/100/150-page tiers are Pro features.{" "}
+              <Link href="/dashboard/settings" className="font-semibold hover:underline">
+                Upgrade to Pro
+              </Link>{" "}
+              to unlock them.
+            </p>
+          )}
+        </div>
 
         {kind === "puzzle" && (
           <div>
@@ -339,8 +340,8 @@ export default function NewProductPage() {
         </button>
         {loading && (
           <p className="text-xs text-zinc-400 -mt-4">
-            {kind === "infographic"
-              ? "This writes the content and renders your infographic image — usually 15-30 seconds."
+            {kind === "coloring"
+              ? "This writes each page's idea, generates a black-and-white illustration for every page, and typesets a PDF — usually 1-4 minutes depending on page count."
               : kind === "puzzle"
                 ? "This writes the puzzle words/clues, builds each grid, and typesets a PDF — usually 30-90 seconds, longer for more puzzles."
                 : "This writes the content, generates cover art, and typesets a PDF and Kindle file — usually 30-90 seconds for shorter page counts, up to a few minutes for a full-length book."}

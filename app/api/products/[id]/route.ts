@@ -5,7 +5,7 @@ import { ProductContent, ProductTypeId, PRODUCT_TYPES } from "@/lib/productTypes
 import { renderProductHtml } from "@/lib/render";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import { readCoverImageDataUri, readCoverImageBuffer, deleteCoverImage } from "@/lib/cover";
-import { deleteInfographicImage } from "@/lib/screenshot";
+import { deleteColoringImages } from "@/lib/coloringImages";
 import { generateEpub, deleteEpub } from "@/lib/epub";
 import fs from "fs";
 import path from "path";
@@ -164,7 +164,7 @@ export async function DELETE(
     }
   }
   deleteCoverImage(product.cover_image_path);
-  deleteInfographicImage(product.asset_path);
+  deleteColoringImages(product.id);
   deleteEpub(product.epub_path);
 
   db.prepare("DELETE FROM products WHERE id = ?").run(id);

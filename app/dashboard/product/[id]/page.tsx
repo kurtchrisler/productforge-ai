@@ -35,7 +35,7 @@ export default async function ProductPage({
 
   const meta = PRODUCT_TYPES[product.product_type as ProductTypeId];
   const kind = meta?.kind;
-  const supportsCoverArt = kind === "document" || kind === "puzzle";
+  const supportsCoverArt = kind === "document" || kind === "puzzle" || kind === "coloring";
   const isPro = membershipMeetsRequirement(user.membership_level, "pro");
   const lengthMeta = PRODUCT_LENGTHS[normalizeLength(product.length)];
   const difficultyMeta = product.difficulty
@@ -57,7 +57,7 @@ export default async function ProductPage({
             {meta?.emoji} {meta?.label ?? product.product_type}
             {kind === "puzzle" && difficultyMeta
               ? ` · ${difficultyMeta.label} · ${lengthMeta ? lengthMeta.label : ""}`
-              : kind === "document" && lengthMeta
+              : (kind === "document" || kind === "coloring") && lengthMeta
                 ? ` · ${lengthMeta.label}`
                 : ""}
           </span>
@@ -68,23 +68,12 @@ export default async function ProductPage({
 
         {product.status === "ready" && product.content_json && (
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            {kind === "infographic" ? (
-              product.asset_path && (
-                <a
-                  href={`/api/products/${product.id}/image`}
-                  className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
-                >
-                  Download image
-                </a>
-              )
-            ) : (
-              <a
-                href={`/api/products/${product.id}/pdf`}
-                className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
-              >
-                Download PDF
-              </a>
-            )}
+            <a
+              href={`/api/products/${product.id}/pdf`}
+              className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition shadow-sm whitespace-nowrap"
+            >
+              Download PDF
+            </a>
             {kind === "document" && product.epub_path && (
               user.kdp_accelerator ? (
                 <a
@@ -224,23 +213,7 @@ export default async function ProductPage({
         </div>
       )}
 
-      {product.status === "ready" && kind === "infographic" && product.asset_path && (
-        <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden bg-zinc-100">
-          <div className="bg-white border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500">
-            Preview
-          </div>
-          <div className="flex justify-center py-6">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/products/${product.id}/image`}
-              alt={product.title || "Infographic"}
-              className="max-w-full sm:max-w-md rounded-lg shadow-sm"
-            />
-          </div>
-        </div>
-      )}
-
-      {product.status === "ready" && kind !== "infographic" && product.html && (
+      {product.status === "ready" && product.html && (
         <div className="mt-8 border border-zinc-200 rounded-xl overflow-hidden bg-zinc-100">
           <div className="bg-white border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500">
             Preview

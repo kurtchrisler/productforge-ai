@@ -23,7 +23,7 @@ import path from "path";
 // membership-level gate (not an independent add-on like KDP Accelerator),
 // since it's sold as a reason to upgrade to Pro rather than a separate
 // purchase. Document-kind products only (ebook/guide/planner/workbook/
-// template/checklist) -- puzzle books and infographics don't have the
+// template/checklist) -- puzzle books and coloring books don't have the
 // prose (introduction/sections/conclusion) the sales-copy prompt needs.
 export async function GET(
   _req: NextRequest,

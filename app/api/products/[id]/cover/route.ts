@@ -6,6 +6,7 @@ import {
   ProductTypeId,
   ProductDifficulty,
   PuzzleBookContent,
+  ColoringBookContent,
   PRODUCT_TYPES,
   PUZZLE_DIFFICULTIES,
 } from "@/lib/productTypes";
@@ -14,6 +15,8 @@ import { renderProductHtml } from "@/lib/render";
 import { generateCrossword } from "@/lib/crosswordGenerator";
 import { generateWordSearch } from "@/lib/wordSearchGenerator";
 import { renderPuzzleBookHtml, GeneratedPuzzle } from "@/lib/renderPuzzles";
+import { renderColoringBookHtml } from "@/lib/renderColoringBook";
+import { readColoringPageDataUris } from "@/lib/coloringImages";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import { readCoverImageDataUri, readCoverImageBuffer } from "@/lib/cover";
 import { generateEpub } from "@/lib/epub";
@@ -106,12 +109,6 @@ export async function POST(
 
   const productType = product.product_type as ProductTypeId;
   const kind = PRODUCT_TYPES[productType]?.kind;
-  if (kind === "infographic") {
-    return NextResponse.json(
-      { error: "Cover art isn't available for infographics — the image itself is the deliverable." },
-      { status: 400 }
-    );
-  }
 
   try {
     const productId = Number(id);
@@ -136,6 +133,31 @@ export async function POST(
       });
 
       const html = renderPuzzleBookHtml(content, puzzleType, difficulty, generatedPuzzles, coverImageDataUri);
+      await renderHtmlToPdf(html, productId);
+
+      db.prepare(
+        `UPDATE products
+         SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(html, `${productId}.pdf`, cover.path, cover.error, productId);
+
+      if (cover.error) {
+        return NextResponse.json({ ok: false, error: cover.error }, { status: 502 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (kind === "coloring") {
+      const content = JSON.parse(product.content_json) as ColoringBookContent;
+
+      const cover = await generateAndSaveCover(product.idea, productType, content, userApiKey, productId);
+      const coverImageDataUri = readCoverImageDataUri(cover.path);
+
+      // Reuse the already-saved page illustrations from disk rather than
+      // re-spending AI credits re-generating every page just to refresh
+      // the cover.
+      const pageDataUris = readColoringPageDataUris(productId, content.pages.length);
+      const html = renderColoringBookHtml(content, pageDataUris, coverImageDataUri);
       await renderHtmlToPdf(html, productId);
 
       db.prepare(

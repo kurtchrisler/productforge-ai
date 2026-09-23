@@ -1,0 +1,69 @@
+ProductGenie AI — Coloring Books update
+========================================
+
+What this does
+---------------
+Removes the "Infographic" product type entirely and replaces it with a new
+"Coloring Book" product type (Pro-only, same as Infographic was): the AI
+plans one line-art scene per page, generates a black-and-white illustration
+for each page with OpenAI's image model, and assembles everything into a
+downloadable PDF — same page-count tiers as the puzzle books (5/10/15/20/30/45
+pages for the 10/25/50/75/100/150 length options).
+
+Because existing Infographic products were removed entirely (not kept
+working), any customer who already created an Infographic product will see
+it lose its download/preview once this ships — there's no migration path
+for old infographic rows, per your instruction to remove the feature
+outright rather than keep legacy ones working.
+
+1. Unzip the update
+--------------------
+From your project's root folder, run:
+
+    unzip -o coloring-books-update.zip -d /path/to/your/aiproductfactory
+
+Replace /path/to/your/aiproductfactory with wherever your app lives on the
+server (e.g. /var/www/aiproductfactory). The -o flag overwrites the existing
+versions of these files without prompting.
+
+If you'd rather unzip locally and upload via SFTP/rsync instead, unzip on
+your machine first:
+
+    unzip coloring-books-update.zip -d coloring-books-update
+
+...then copy the extracted "lib" and "app" folders into your project,
+merging them with what's already there.
+
+2. Delete the files this update removes
+-----------------------------------------
+The zip only ever ADDS or REPLACES files — it can't delete anything. This
+update deletes four files that are no longer used, so remove them by hand
+on the server (from your project root):
+
+    rm lib/infographicContent.ts
+    rm lib/renderInfographic.ts
+    rm lib/screenshot.ts
+    rm "app/api/products/[id]/image/route.ts"
+
+(The quotes around the last path are needed because of the square brackets
+in the folder name.)
+
+3. Rebuild and restart
+------------------------
+    npm run build
+    pm2 restart aiproductfactory      # or however you restart the app
+
+(Swap the restart command for whatever you actually use — pm2, systemctl,
+a Docker restart, etc.)
+
+4. Optional: clean up old infographic image files on disk
+-------------------------------------------------------------
+Since Infographic products are gone, any previously-generated infographic
+PNGs sitting in data/infographics/ on the server are now orphaned (nothing
+references them anymore). They're harmless to leave, but if you want to
+reclaim the disk space:
+
+    rm -rf data/infographics
+
+That's it — new products will show "Coloring Book" 🖍️ instead of
+"Infographic" 📊 in the product type picker, Pro-gated exactly like before.

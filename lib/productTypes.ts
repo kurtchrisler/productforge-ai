@@ -9,13 +9,13 @@ export type ProductTypeId =
   | "checklist"
   | "crossword"
   | "word_search"
-  | "infographic";
+  | "coloring_book";
 
 // What generation/rendering pipeline a product type uses:
 // - "document": AI writes prose sections -> multi-page PDF (existing pipeline)
 // - "puzzle": AI writes word/clue sets -> deterministic grid generator -> multi-page PDF
-// - "infographic": AI writes structured stats/points -> single-page PNG (not a PDF)
-export type ProductKind = "document" | "puzzle" | "infographic";
+// - "coloring": AI writes one caption+prompt per page -> one AI line-art image per page -> multi-page PDF
+export type ProductKind = "document" | "puzzle" | "coloring";
 
 export type ProductTypeMeta = {
   id: ProductTypeId;
@@ -38,7 +38,7 @@ export type ProductTypeMeta = {
   // Lowest membership tier that can create this product type. 'standard'
   // means Standard-and-up (i.e. both tiers); 'pro' means Pro-only. Per
   // Kurt's spec: ebook/guide/planner/workbook/template/checklist are
-  // Standard; crossword/word_search/infographic are Pro additions.
+  // Standard; crossword/word_search/coloring_book are Pro additions.
   minMembership: "standard" | "pro";
 };
 
@@ -171,17 +171,17 @@ export const PRODUCT_TYPES: Record<ProductTypeId, ProductTypeMeta> = {
     checklistStyle: false,
     minMembership: "pro",
   },
-  infographic: {
-    id: "infographic",
-    label: "Infographic",
-    shortLabel: "Infographic",
+  coloring_book: {
+    id: "coloring_book",
+    label: "Coloring Book",
+    shortLabel: "Coloring Book",
     description:
-      "A single shareable infographic image built from your topic and instructions — no PDF, just the image.",
+      "A full coloring book with one original black-and-white line-art illustration per page.",
     accent: "#c2410c",
     accentSoft: "#fff7ed",
-    emoji: "\u{1F4CA}",
-    kind: "infographic",
-    sectionNoun: "section",
+    emoji: "\u{1F58D}\u{FE0F}",
+    kind: "coloring",
+    sectionNoun: "page",
     sectionCountHint: 0,
     worksheetHint: false,
     checklistStyle: false,
@@ -367,6 +367,13 @@ export const PUZZLE_COUNTS: Record<ProductLength, number> = {
   "150": 45,
 };
 
+// How many individual coloring pages a coloring-book product contains, tied
+// to the same page-length control as everything else. Per Kurt's spec this
+// scales identically to PUZZLE_COUNTS (5/10/15/20/30/45) — kept as its own
+// named export so coloring-book call sites read clearly and the two can be
+// tuned independently later if needed.
+export const COLORING_PAGE_COUNTS: Record<ProductLength, number> = PUZZLE_COUNTS;
+
 export function resolveSectionCount(
   type: ProductTypeId,
   length: ProductLength
@@ -382,7 +389,7 @@ export function resolveSectionCount(
 //   Standard: ebook, guide, planner, workbook, template, checklist -- at
 //             the 10/25/50 page lengths.
 //   Pro:      everything in Standard, PLUS crossword/word_search/
-//             infographic, PLUS the 75/100/150 page lengths.
+//             coloring_book, PLUS the 75/100/150 page lengths.
 // So a request is allowed when the customer's tier is at or above BOTH the
 // product type's minimum tier AND the page length's minimum tier -- e.g. a
 // Standard member cannot make a 100-page ebook (blocked by length) or a
@@ -523,17 +530,20 @@ export type PuzzleBookContent = {
   puzzles: PuzzleSet[];
 };
 
-// ---- Infographic types ----
+// ---- Coloring book types ----
 
-export type InfographicStat = {
-  value: string; // e.g. "73%" or "10x"
-  label: string; // e.g. "of marketers say..."
+// One coloring-book page: "prompt" drives the AI image generator (the exact
+// scene to illustrate), "caption" is the short label printed under the
+// image (and shown in the placeholder box if that page's image generation
+// failed or was never attempted, e.g. in mock/demo mode).
+export type ColoringPageSpec = {
+  caption: string;
+  prompt: string;
 };
 
-export type InfographicContent = {
+export type ColoringBookContent = {
   title: string;
   subtitle: string;
-  stats: InfographicStat[];
-  points: string[];
-  footerNote: string;
+  tagline: string;
+  pages: ColoringPageSpec[];
 };

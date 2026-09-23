@@ -7,6 +7,7 @@ import {
   isProductDifficulty,
   PRODUCT_TYPES,
   PUZZLE_COUNTS,
+  COLORING_PAGE_COUNTS,
   PUZZLE_DIFFICULTIES,
   ProductTypeId,
   isAllowedForMembership,
@@ -14,14 +15,14 @@ import {
 } from "@/lib/productTypes";
 import { generateProductContent, generateAndSaveCover } from "@/lib/ai";
 import { generatePuzzleContent } from "@/lib/puzzleContent";
-import { generateInfographicContent } from "@/lib/infographicContent";
+import { generateColoringBookContent } from "@/lib/coloringBookContent";
+import { generateAndSaveColoringPages } from "@/lib/coloringImages";
 import { generateCrossword } from "@/lib/crosswordGenerator";
 import { generateWordSearch } from "@/lib/wordSearchGenerator";
 import { renderProductHtml } from "@/lib/render";
 import { renderPuzzleBookHtml, GeneratedPuzzle } from "@/lib/renderPuzzles";
-import { renderInfographicHtml, INFOGRAPHIC_WIDTH, INFOGRAPHIC_HEIGHT } from "@/lib/renderInfographic";
+import { renderColoringBookHtml } from "@/lib/renderColoringBook";
 import { renderHtmlToPdf } from "@/lib/pdf";
-import { renderHtmlToPng } from "@/lib/screenshot";
 import { decryptSecret } from "@/lib/crypto";
 import { readCoverImageDataUri, readCoverImageBuffer } from "@/lib/cover";
 import { generateEpub } from "@/lib/epub";
@@ -185,23 +186,56 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, productId, mode });
     }
 
-    if (kind === "infographic") {
-      const { content } = await generateInfographicContent(
+    if (kind === "coloring") {
+      const pageCount = COLORING_PAGE_COUNTS[resolvedLength];
+      const { content, mode } = await generateColoringBookContent(
         idea.trim(),
         resolvedInstructions,
+        pageCount,
         userApiKey
       );
 
-      const html = renderInfographicHtml(content);
-      const assetPath = await renderHtmlToPng(html, productId, INFOGRAPHIC_WIDTH, INFOGRAPHIC_HEIGHT);
+      // Same policy as document/puzzle cover art: only spend real AI calls
+      // (cover art AND per-page illustrations) when generation actually ran
+      // on a real key, never in demo/mock mode.
+      let coverImagePath: string | null = null;
+      let coverError: string | null = null;
+      if (mode === "ai") {
+        const cover = await generateAndSaveCover(
+          idea.trim(),
+          productType,
+          content,
+          userApiKey,
+          productId
+        );
+        coverImagePath = cover.path;
+        coverError = cover.error;
+      }
+      const coverImageDataUri = readCoverImageDataUri(coverImagePath);
+
+      const pageDataUris =
+        mode === "ai"
+          ? await generateAndSaveColoringPages(content, userApiKey, productId)
+          : content.pages.map(() => null);
+
+      const html = renderColoringBookHtml(content, pageDataUris, coverImageDataUri);
+      await renderHtmlToPdf(html, productId);
 
       db.prepare(
         `UPDATE products
-         SET status = 'ready', title = ?, content_json = ?, html = ?, asset_path = ?, updated_at = datetime('now')
+         SET status = 'ready', title = ?, content_json = ?, html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
          WHERE id = ?`
-      ).run(content.title, JSON.stringify(content), html, assetPath, productId);
+      ).run(
+        content.title,
+        JSON.stringify(content),
+        html,
+        `${productId}.pdf`,
+        coverImagePath,
+        coverError,
+        productId
+      );
 
-      return NextResponse.json({ ok: true, productId, mode: userApiKey ? "ai" : "mock" });
+      return NextResponse.json({ ok: true, productId, mode });
     }
 
     // kind === "document" (ebook, guide, planner, workbook, template, checklist)

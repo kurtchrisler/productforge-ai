@@ -83,8 +83,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     database.exec(`ALTER TABLE products ADD COLUMN cover_error TEXT`);
   }
   // Migration: puzzle difficulty (crossword/word search only) and a generic
-  // non-PDF asset path (used by infographics, which deliver a single PNG
-  // rather than a multi-page PDF).
+  // non-PDF asset path. asset_path was originally used by infographics
+  // (removed — see coloring_book in lib/productTypes.ts) to deliver a
+  // single PNG rather than a multi-page PDF; the column is kept (unused)
+  // rather than dropped, since node:sqlite has no DROP COLUMN migration
+  // here and old rows may still reference it.
   if (!productColumns.some((c) => c.name === "difficulty")) {
     database.exec(`ALTER TABLE products ADD COLUMN difficulty TEXT`);
   }
