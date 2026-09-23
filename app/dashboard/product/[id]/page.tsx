@@ -74,7 +74,7 @@ export default async function ProductPage({
             >
               Download PDF
             </a>
-            {kind === "document" && product.epub_path && (
+            {product.epub_path && (
               user.kdp_accelerator ? (
                 <a
                   href={`/api/products/${product.id}/epub`}
@@ -118,7 +118,7 @@ export default async function ProductPage({
                 </Link>
               )
             )}
-            {kind === "document" && product.pdf_path && (
+            {product.pdf_path && (
               isPro ? (
                 <a
                   href={`/api/products/${product.id}/saleskit`}
@@ -156,8 +156,7 @@ export default async function ProductPage({
 
       {!user.kdp_accelerator &&
         product.status === "ready" &&
-        ((kind === "document" && product.epub_path) ||
-          (supportsCoverArt && product.cover_image_path)) && (
+        (product.epub_path || (supportsCoverArt && product.cover_image_path)) && (
           <div className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 flex items-center justify-between gap-4">
             <span>
               🔒 Kindle-ready downloads (.epub and the Kindle cover .jpg) are
@@ -172,7 +171,7 @@ export default async function ProductPage({
           </div>
         )}
 
-      {!isPro && kind === "document" && product.status === "ready" && product.pdf_path && (
+      {!isPro && product.status === "ready" && product.pdf_path && (
         <div className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 flex items-center justify-between gap-4">
           <span>
             🔒 A ready-to-upload sales page + download page for this product

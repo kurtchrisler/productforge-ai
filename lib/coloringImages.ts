@@ -118,6 +118,20 @@ export function readColoringPageDataUris(
   });
 }
 
+// Same as above but returns raw buffers rather than data: URIs — used when
+// embedding page images as their own binary files inside a package format
+// like EPUB, rather than inlining them into an HTML string.
+export function readColoringPageBuffers(
+  productId: number,
+  pageCount: number
+): (Buffer | null)[] {
+  return Array.from({ length: pageCount }, (_, i) => {
+    const filePath = pageFilePath(productId, i);
+    if (!fs.existsSync(filePath)) return null;
+    return fs.readFileSync(filePath);
+  });
+}
+
 export function deleteColoringImages(productId: number): void {
   const dir = path.join(coloringDir, String(productId));
   if (fs.existsSync(dir)) {

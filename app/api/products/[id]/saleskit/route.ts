@@ -5,6 +5,9 @@ import {
   PRODUCT_TYPES,
   ProductTypeId,
   ProductContent,
+  PuzzleBookContent,
+  ColoringBookContent,
+  ProductDifficulty,
   membershipMeetsRequirement,
 } from "@/lib/productTypes";
 import { decryptSecret } from "@/lib/crypto";
@@ -14,6 +17,7 @@ import {
   renderSalesPageHtml,
   renderDownloadPageHtml,
   buildSalesKitZip,
+  buildSalesSource,
 } from "@/lib/salesKit";
 import fs from "fs";
 import path from "path";
@@ -22,9 +26,10 @@ import path from "path";
 // the customer's own products, zipped together. Pro-only: this is a
 // membership-level gate (not an independent add-on like KDP Accelerator),
 // since it's sold as a reason to upgrade to Pro rather than a separate
-// purchase. Document-kind products only (ebook/guide/planner/workbook/
-// template/checklist) -- puzzle books and coloring books don't have the
-// prose (introduction/sections/conclusion) the sales-copy prompt needs.
+// purchase. Works across every product kind (document/puzzle/coloring) --
+// buildSalesSource in lib/salesKit.ts normalizes each kind's own content
+// shape into one common set of grounded facts the copy generator and page
+// renderer both work from.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -56,12 +61,9 @@ export async function GET(
   }
 
   const meta = PRODUCT_TYPES[product.product_type as ProductTypeId];
-  if (!meta || meta.kind !== "document" || !product.pdf_path) {
+  if (!meta || !product.pdf_path) {
     return NextResponse.json(
-      {
-        error:
-          "The sales kit is available for ebooks, guides, planners, workbooks, templates, and checklists.",
-      },
+      { error: "This product isn't ready for a sales kit yet." },
       { status: 400 }
     );
   }
@@ -71,7 +73,12 @@ export async function GET(
     return NextResponse.json({ error: "PDF file missing." }, { status: 404 });
   }
 
-  const content = JSON.parse(product.content_json) as ProductContent;
+  const productType = product.product_type as ProductTypeId;
+  const content = JSON.parse(product.content_json) as
+    | ProductContent
+    | PuzzleBookContent
+    | ColoringBookContent;
+  const source = buildSalesSource(content, productType, product.difficulty as ProductDifficulty | null);
 
   let userApiKey: string | null = null;
   if (user.openai_api_key) {
@@ -84,11 +91,7 @@ export async function GET(
 
   let copy;
   try {
-    const result = await generateSalesCopy(
-      content,
-      product.product_type as ProductTypeId,
-      userApiKey
-    );
+    const result = await generateSalesCopy(source, productType, userApiKey);
     copy = result.copy;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sales copy generation failed.";
@@ -99,13 +102,8 @@ export async function GET(
   const pdfBuffer = fs.readFileSync(filePath);
   const pdfDataUri = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`;
 
-  const salesPageHtml = renderSalesPageHtml(
-    content,
-    product.product_type as ProductTypeId,
-    copy,
-    coverDataUri
-  );
-  const downloadPageHtml = renderDownloadPageHtml(content, coverDataUri, pdfDataUri);
+  const salesPageHtml = renderSalesPageHtml(source, productType, copy, coverDataUri);
+  const downloadPageHtml = renderDownloadPageHtml(source, coverDataUri, pdfDataUri);
 
   const zipBuffer = await buildSalesKitZip([
     { name: "sales-page.html", content: salesPageHtml },

@@ -1,69 +1,61 @@
-ProductGenie AI — Coloring Books update
-========================================
+ProductGenie AI — Sales Kit + Kindle EPUB, extended to all product kinds
+==========================================================================
 
 What this does
 ---------------
-Removes the "Infographic" product type entirely and replaces it with a new
-"Coloring Book" product type (Pro-only, same as Infographic was): the AI
-plans one line-art scene per page, generates a black-and-white illustration
-for each page with OpenAI's image model, and assembles everything into a
-downloadable PDF — same page-count tiers as the puzzle books (5/10/15/20/30/45
-pages for the 10/25/50/75/100/150 length options).
+Previously, "Download Sales Kit" (sales page + download page) and
+"Download for Kindle (.epub)" only ever showed up for document-kind
+products (ebooks, guides, planners, workbooks, templates, checklists).
+Crossword/word search puzzle books and coloring books never got either
+button — not a bug, just not built yet.
 
-Because existing Infographic products were removed entirely (not kept
-working), any customer who already created an Infographic product will see
-it lose its download/preview once this ships — there's no migration path
-for old infographic rows, per your instruction to remove the feature
-outright rather than keep legacy ones working.
+This update extends both features to cover every product kind:
 
-1. Unzip the update
---------------------
-From your project's root folder, run:
+- Kindle .epub for crossword/word search books: the puzzle grid and
+  clues are rendered as plain HTML tables (unsolved puzzles first, then
+  an "Answer Keys" section with the solved grids) — real reflowable
+  text, not a screenshot, so it stays a small file and displays properly
+  on any Kindle device or app.
+- Kindle .epub for coloring books: repackages the same AI-generated
+  line-art PNGs already used in the PDF as one full-page image per
+  chapter — like a picture-book or comic EPUB.
+- Sales Kit for puzzle and coloring books: the AI sales-copy generator
+  now works from each kind's own real content (puzzle themes/difficulty,
+  or page captions) instead of requiring prose chapters. Same rule as
+  before — nothing about price, checkout, or guarantees is invented;
+  those stay as visible bracketed placeholders for you to fill in.
 
-    unzip -o coloring-books-update.zip -d /path/to/your/aiproductfactory
+No new AI calls were added anywhere in the generation pipeline — the EPUB
+changes are pure repackaging of content that was already being generated,
+and the Sales Kit change only touches which content it's allowed to run on.
 
-Replace /path/to/your/aiproductfactory with wherever your app lives on the
-server (e.g. /var/www/aiproductfactory). The -o flag overwrites the existing
-versions of these files without prompting.
+1. Unzip the update into your local clone
+-------------------------------------------
+    Expand-Archive -Path saleskit-epub-all-kinds-update.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
 
-If you'd rather unzip locally and upload via SFTP/rsync instead, unzip on
-your machine first:
+2. Commit and push
+---------------------
+    cd C:\Users\kchri\Downloads\productforge-ai\aiproductfactory
+    git add -A
+    git commit -m "Extend Sales Kit and Kindle .epub to puzzle and coloring-book products"
+    git push
 
-    unzip coloring-books-update.zip -d coloring-books-update
+3. Deploy on the server
+---------------------------
+    ssh cloudb23@144.208.68.97
+    cd ~/productforge-ai
+    git pull && ./deploy.sh
 
-...then copy the extracted "lib" and "app" folders into your project,
-merging them with what's already there.
+Nothing needs deleting this time — every file in this update is a
+replacement of an existing file, nothing was removed.
 
-2. Delete the files this update removes
------------------------------------------
-The zip only ever ADDS or REPLACES files — it can't delete anything. This
-update deletes four files that are no longer used, so remove them by hand
-on the server (from your project root):
-
-    rm lib/infographicContent.ts
-    rm lib/renderInfographic.ts
-    rm lib/screenshot.ts
-    rm "app/api/products/[id]/image/route.ts"
-
-(The quotes around the last path are needed because of the square brackets
-in the folder name.)
-
-3. Rebuild and restart
+4. Existing products
 ------------------------
-    npm run build
-    pm2 restart aiproductfactory      # or however you restart the app
-
-(Swap the restart command for whatever you actually use — pm2, systemctl,
-a Docker restart, etc.)
-
-4. Optional: clean up old infographic image files on disk
--------------------------------------------------------------
-Since Infographic products are gone, any previously-generated infographic
-PNGs sitting in data/infographics/ on the server are now orphaned (nothing
-references them anymore). They're harmless to leave, but if you want to
-reclaim the disk space:
-
-    rm -rf data/infographics
-
-That's it — new products will show "Coloring Book" 🖍️ instead of
-"Infographic" 📊 in the product type picker, Pro-gated exactly like before.
+This only affects NEW downloads going forward. Existing puzzle and
+coloring-book products won't have an .epub file yet (their epub_path is
+still empty in the database), so the Kindle download button won't appear
+for them until you click "Regenerate cover" on that product — that
+re-runs the same code path and builds the missing .epub alongside a
+refreshed cover, at no extra AI cost. There's no cover-only refresh that
+skips the EPUB build, and no separate "generate epub" action — the
+regenerate-cover button is the retry path for both.

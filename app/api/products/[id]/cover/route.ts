@@ -135,11 +135,20 @@ export async function POST(
       const html = renderPuzzleBookHtml(content, puzzleType, difficulty, generatedPuzzles, coverImageDataUri);
       await renderHtmlToPdf(html, productId);
 
+      // The Kindle EPUB embeds the cover too, so keep it in sync.
+      const epubFilename = await generateEpub(
+        content,
+        productType,
+        readCoverImageBuffer(cover.path),
+        productId,
+        difficulty
+      );
+
       db.prepare(
         `UPDATE products
-         SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
+         SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, epub_path = ?, updated_at = datetime('now')
          WHERE id = ?`
-      ).run(html, `${productId}.pdf`, cover.path, cover.error, productId);
+      ).run(html, `${productId}.pdf`, cover.path, cover.error, epubFilename, productId);
 
       if (cover.error) {
         return NextResponse.json({ ok: false, error: cover.error }, { status: 502 });
@@ -160,11 +169,21 @@ export async function POST(
       const html = renderColoringBookHtml(content, pageDataUris, coverImageDataUri);
       await renderHtmlToPdf(html, productId);
 
+      // The Kindle EPUB embeds the cover too, so keep it in sync — the
+      // page illustrations themselves are re-read from disk, not
+      // re-generated, same as the PDF above.
+      const epubFilename = await generateEpub(
+        content,
+        productType,
+        readCoverImageBuffer(cover.path),
+        productId
+      );
+
       db.prepare(
         `UPDATE products
-         SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, updated_at = datetime('now')
+         SET html = ?, pdf_path = ?, cover_image_path = ?, cover_error = ?, epub_path = ?, updated_at = datetime('now')
          WHERE id = ?`
-      ).run(html, `${productId}.pdf`, cover.path, cover.error, productId);
+      ).run(html, `${productId}.pdf`, cover.path, cover.error, epubFilename, productId);
 
       if (cover.error) {
         return NextResponse.json({ ok: false, error: cover.error }, { status: 502 });
