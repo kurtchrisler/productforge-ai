@@ -1,44 +1,63 @@
-ProductGenie AI — Training Page + Real Upgrade Links (CORRECTED ZIP)
-=======================================================================
+ProductGenie AI — One purchase email can no longer activate more than one account
+====================================================================================
 
-The first zip I sent had a packaging bug: it had its own top-level
-"aiproductfactory" folder inside it, and I told you to extract into
-...\productforge-ai\aiproductfactory — which put everything one folder too
-deep (...\aiproductfactory\aiproductfactory\...) instead of merging into
-your real lib\, components\, and app\ folders. That's why the server build
-failed with "Cannot find module './license'" / "./LogoutButton" — those
-new files were sitting in a phantom duplicate folder that never replaced
-anything.
+What this does
+---------------
+Up to now, any account could type any purchase email into "Refresh my
+license" in Settings, and the app would grant that account whatever tier
+the license server said the email was entitled to — with no check for
+whether another account had already claimed that same email. That meant
+one purchase email could unlock Standard/Pro (or KDP Accelerator) on as
+many different accounts as someone tried it on.
 
-This zip is fixed: it has NO wrapper folder, so extracting it straight
-into your aiproductfactory project folder merges correctly.
+Now, before granting access from a license-server "yes", the app checks
+whether another account already actively holds that email (an active
+Standard/Pro tier, or the KDP Accelerator add-on). If so, the new attempt
+is blocked with a clear message ("This purchase email is already active on
+a different ProductGenie AI account...") and nothing changes for either
+account — the existing holder keeps their access untouched, and the
+account making the blocked attempt just doesn't get granted anything.
 
-1. Delete the bad nested folder from your local clone
-----------------------------------------------------------
-    Remove-Item -Recurse -Force C:\Users\kchri\Downloads\productforge-ai\aiproductfactory\aiproductfactory
+This is checked in both places a license gets verified:
+- Settings -> "Refresh my license"
+- The automatic check that runs right after signup (in case someone signs
+  up using an email that's already bound to a different account as a
+  purchase email)
 
-2. Extract this corrected zip into the real project folder
------------------------------------------------------------------
-    Expand-Archive -Path training-page-and-upgrade-links-update-FIXED.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
+An account can always re-verify the email already bound to ITSELF (e.g.
+clicking "Refresh my license" again, or after later buying KDP
+Accelerator) — this only blocks a DIFFERENT account from claiming an
+already-claimed email.
 
-3. Commit and push
+I tested this against a stub license server (so I could control its
+response without touching your real WP Marketer Tools server) covering:
+one account claiming an email, a second account being blocked from the
+same email (with its own existing access left untouched), an account
+freely re-verifying its own email, and a brand-new signup being blocked
+when its login email happens to match an email already claimed elsewhere.
+All passed.
+
+1. Unzip into your local clone
+----------------------------------
+    Expand-Archive -Path license-email-conflict-fix.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
+
+2. Commit and push
 ---------------------
     cd C:\Users\kchri\Downloads\productforge-ai\aiproductfactory
     git add -A
-    git commit -m "Fix Training page update: remove misplaced nested folder, correct file locations"
+    git commit -m "Block a purchase email from activating more than one account"
     git push
 
-   You should see the bad nested aiproductfactory/... files listed as
-   DELETED in this commit, alongside the same 7 files as before now
-   showing as MODIFIED in their correct locations (lib/productTypes.ts,
-   components/Navbar.tsx, app/dashboard/..., app/api/training-video/route.ts).
-   If you don't see deletions listed, stop and let me know before pushing.
-
-4. Deploy on the server
+3. Deploy on the server
 ---------------------------
     ssh cloudb23@144.208.68.97
     cd ~/productforge-ai
     git pull && ./deploy.sh
 
-The video you already uploaded to data/training/product-genie-training.mp4
-is untouched by any of this — no need to re-upload it.
+Nothing to backfill — this only changes what happens on the NEXT license
+check for any account, it doesn't touch existing data. If two accounts
+already share the same license_email from before this fix, both will keep
+their current access; the block only kicks in the next time either of them
+(or a third account) tries to activate that email going forward, at which
+point whichever one is NOT already holding real access will be the one
+blocked.

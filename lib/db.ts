@@ -187,6 +187,33 @@ export function getDb(): DatabaseSync {
   return global.__afdb;
 }
 
+// A purchase email is meant to unlock ONE ProductGenie AI account, not be
+// typed into "Refresh my license" on several signups. Returns the id of
+// another account that's already actively holding this email (a real
+// Standard/Pro tier, or the KDP Accelerator add-on) -- or null if it's
+// free to bind here. "Actively holding" is deliberate: a row can carry a
+// leftover license_email from a past failed/checked attempt without ever
+// having been granted anything, and that shouldn't block anyone, so this
+// only counts accounts that were actually granted access with this email.
+// Both the signup auto-check and the Settings "Refresh my license" POST
+// consult this before ever turning a license-server "yes" into access.
+export function findLicenseEmailConflict(
+  db: DatabaseSync,
+  email: string,
+  excludeUserId: number
+): number | null {
+  const row = db
+    .prepare(
+      `SELECT id FROM users
+       WHERE lower(license_email) = lower(?)
+         AND id != ?
+         AND (membership_level != 'none' OR kdp_accelerator = 1)
+       LIMIT 1`
+    )
+    .get(email, excludeUserId) as { id: number } | undefined;
+  return row ? row.id : null;
+}
+
 export type User = {
   id: number;
   email: string;

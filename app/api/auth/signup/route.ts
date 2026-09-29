@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDb, findLicenseEmailConflict } from "@/lib/db";
 import { hashPassword, createSession, setSessionCookie } from "@/lib/auth";
 import { checkLicense } from "@/lib/license";
 
@@ -63,9 +63,28 @@ export async function POST(req: NextRequest) {
       // nothing, so a brand-new account correctly just keeps the column's
       // default of 0 in that case.
       const kdpAccelerator = "kdpAccelerator" in result ? result.kdpAccelerator : false;
+
+      // A purchase email only ever unlocks one account. It's rare but
+      // possible for this signup's own login email to already be bound
+      // (with real access) to a different account -- e.g. someone typed it
+      // into another account's "Refresh my license" as a purchase email
+      // first. If so, leave this brand-new account at 'none' rather than
+      // handing it access that's already claimed elsewhere.
+      const wouldGrantAccess =
+        result.ok || (!result.ok && result.reachable && kdpAccelerator);
+      const conflict =
+        wouldGrantAccess && findLicenseEmailConflict(db, normalizedEmail, userId);
+
       db.prepare(
         "UPDATE users SET membership_level = ?, license_checked_at = datetime('now'), license_message = ?, kdp_accelerator = ? WHERE id = ?"
-      ).run(result.ok ? result.tier : "none", result.message, kdpAccelerator ? 1 : 0, userId);
+      ).run(
+        conflict ? "none" : result.ok ? result.tier : "none",
+        conflict
+          ? "This email is already active on a different ProductGenie AI account. Head to Settings to try a different purchase email, or contact support@wpmarketertools.com."
+          : result.message,
+        conflict ? 0 : kdpAccelerator ? 1 : 0,
+        userId
+      );
     } catch (err) {
       console.error("Post-signup license check failed:", err);
     }

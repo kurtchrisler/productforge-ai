@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDb, findLicenseEmailConflict } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { checkLicense } from "@/lib/license";
+
+const ALREADY_CLAIMED_MESSAGE =
+  "This purchase email is already active on a different ProductGenie AI account. If that's not right, contact support@wpmarketertools.com.";
 
 // Current membership status, for the Settings page to render on load.
 export async function GET() {
@@ -49,6 +52,25 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
   const result = await checkLicense(emailToCheck);
+
+  // Only ever a concern when this check is about to GRANT something (a
+  // confirmed tier, or the KDP Accelerator add-on riding along on a "no
+  // tier" response) -- a downgrade to 'none' never needs the conflict
+  // check, since nothing is being claimed. Re-checking the email already
+  // bound to this same account is always allowed (excludeUserId).
+  const wouldGrantAccess =
+    result.ok || (!result.ok && result.reachable && result.kdpAccelerator);
+
+  if (wouldGrantAccess && findLicenseEmailConflict(db, emailToCheck, user.id)) {
+    db.prepare(
+      `UPDATE users SET license_checked_at = datetime('now'), license_message = ? WHERE id = ?`
+    ).run(ALREADY_CLAIMED_MESSAGE, user.id);
+
+    return NextResponse.json(
+      { error: ALREADY_CLAIMED_MESSAGE, code: "already_claimed" },
+      { status: 409 }
+    );
+  }
 
   if (result.ok) {
     db.prepare(
