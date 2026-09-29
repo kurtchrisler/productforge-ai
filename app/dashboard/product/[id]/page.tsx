@@ -11,6 +11,7 @@ import {
   PUZZLE_DIFFICULTIES,
   ProductDifficulty,
   membershipMeetsRequirement,
+  PURCHASE_URLS,
 } from "@/lib/productTypes";
 import ProductEditor from "@/components/ProductEditor";
 import CoverRegenerateButton from "@/components/CoverRegenerateButton";
@@ -83,13 +84,15 @@ export default async function ProductPage({
                   Download for Kindle (.epub)
                 </a>
               ) : (
-                <Link
-                  href="/dashboard/settings"
+                <a
+                  href={PURCHASE_URLS.kdpAccelerator}
+                  target="_blank"
+                  rel="noreferrer"
                   title="Part of the KDP Accelerator add-on"
                   className="px-5 py-2.5 rounded-lg border border-dashed border-zinc-300 text-zinc-400 font-semibold text-sm hover:border-zinc-400 hover:text-zinc-500 transition whitespace-nowrap"
                 >
                   Download for Kindle (.epub) 🔒
-                </Link>
+                </a>
               )
             )}
             {supportsCoverArt && product.cover_image_path && (
@@ -109,13 +112,15 @@ export default async function ProductPage({
                   Download Kindle cover (.jpg)
                 </a>
               ) : (
-                <Link
-                  href="/dashboard/settings"
+                <a
+                  href={PURCHASE_URLS.kdpAccelerator}
+                  target="_blank"
+                  rel="noreferrer"
                   title="Part of the KDP Accelerator add-on"
                   className="px-5 py-2.5 rounded-lg border border-dashed border-zinc-300 text-zinc-400 font-semibold text-sm hover:border-zinc-400 hover:text-zinc-500 transition whitespace-nowrap"
                 >
                   Download Kindle cover (.jpg) 🔒
-                </Link>
+                </a>
               )
             )}
             {product.pdf_path && (
@@ -127,13 +132,15 @@ export default async function ProductPage({
                   Download Sales Kit
                 </a>
               ) : (
-                <Link
-                  href="/dashboard/settings"
+                <a
+                  href={PURCHASE_URLS.pro}
+                  target="_blank"
+                  rel="noreferrer"
                   title="Sales page + download page kit is a Pro feature"
                   className="px-5 py-2.5 rounded-lg border border-dashed border-zinc-300 text-zinc-400 font-semibold text-sm hover:border-zinc-400 hover:text-zinc-500 transition whitespace-nowrap"
                 >
                   Download Sales Kit 🔒
-                </Link>
+                </a>
               )
             )}
             {kind === "document" && (
@@ -162,12 +169,14 @@ export default async function ProductPage({
               🔒 Kindle-ready downloads (.epub and the Kindle cover .jpg) are
               part of the KDP Accelerator add-on.
             </span>
-            <Link
-              href="/dashboard/settings"
+            <a
+              href={PURCHASE_URLS.kdpAccelerator}
+              target="_blank"
+              rel="noreferrer"
               className="whitespace-nowrap font-semibold hover:underline"
             >
               Upgrade →
-            </Link>
+            </a>
           </div>
         )}
 
@@ -177,12 +186,14 @@ export default async function ProductPage({
             🔒 A ready-to-upload sales page + download page for this product
             is a Pro feature.
           </span>
-          <Link
-            href="/dashboard/settings"
+          <a
+            href={PURCHASE_URLS.pro}
+            target="_blank"
+            rel="noreferrer"
             className="whitespace-nowrap font-semibold hover:underline"
           >
             Upgrade →
-          </Link>
+          </a>
         </div>
       )}
 

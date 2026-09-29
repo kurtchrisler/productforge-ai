@@ -14,6 +14,7 @@ import {
   PUZZLE_DIFFICULTY_LIST,
   ProductDifficulty,
   isAllowedForMembership,
+  PURCHASE_URLS,
 } from "@/lib/productTypes";
 
 type MembershipLevel = "none" | "standard" | "pro";
@@ -282,9 +283,14 @@ export default function NewProductPage() {
             <p className="text-xs text-indigo-600 mt-2">
               Crossword puzzles, word search puzzles, coloring books, and the
               75/100/150-page tiers are Pro features.{" "}
-              <Link href="/dashboard/settings" className="font-semibold hover:underline">
+              <a
+                href={PURCHASE_URLS.pro}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold hover:underline"
+              >
                 Upgrade to Pro
-              </Link>{" "}
+              </a>{" "}
               to unlock them.
             </p>
           )}

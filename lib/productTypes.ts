@@ -408,6 +408,14 @@ export function membershipMeetsRequirement(
   return MEMBERSHIP_RANK[membership] >= MEMBERSHIP_RANK[required];
 }
 
+// Real purchase pages on WP Marketer Tools — every "upgrade"/"add-on" prompt
+// in the dashboard should point here, not to an internal page, so a customer
+// always has somewhere to actually buy.
+export const PURCHASE_URLS = {
+  pro: "https://www.wpmarketertools.com/product-genie-ai-pro/",
+  kdpAccelerator: "https://www.wpmarketertools.com/product-genie-ai-kdp-accelerator/",
+} as const;
+
 // The single tier a customer would need to create this exact
 // type+length combination -- whichever of the two requirements is higher.
 export function requiredMembershipFor(

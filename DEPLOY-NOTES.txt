@@ -1,61 +1,44 @@
-ProductGenie AI — Sales Kit + Kindle EPUB, extended to all product kinds
-==========================================================================
+ProductGenie AI — Training Page + Real Upgrade Links (CORRECTED ZIP)
+=======================================================================
 
-What this does
----------------
-Previously, "Download Sales Kit" (sales page + download page) and
-"Download for Kindle (.epub)" only ever showed up for document-kind
-products (ebooks, guides, planners, workbooks, templates, checklists).
-Crossword/word search puzzle books and coloring books never got either
-button — not a bug, just not built yet.
+The first zip I sent had a packaging bug: it had its own top-level
+"aiproductfactory" folder inside it, and I told you to extract into
+...\productforge-ai\aiproductfactory — which put everything one folder too
+deep (...\aiproductfactory\aiproductfactory\...) instead of merging into
+your real lib\, components\, and app\ folders. That's why the server build
+failed with "Cannot find module './license'" / "./LogoutButton" — those
+new files were sitting in a phantom duplicate folder that never replaced
+anything.
 
-This update extends both features to cover every product kind:
+This zip is fixed: it has NO wrapper folder, so extracting it straight
+into your aiproductfactory project folder merges correctly.
 
-- Kindle .epub for crossword/word search books: the puzzle grid and
-  clues are rendered as plain HTML tables (unsolved puzzles first, then
-  an "Answer Keys" section with the solved grids) — real reflowable
-  text, not a screenshot, so it stays a small file and displays properly
-  on any Kindle device or app.
-- Kindle .epub for coloring books: repackages the same AI-generated
-  line-art PNGs already used in the PDF as one full-page image per
-  chapter — like a picture-book or comic EPUB.
-- Sales Kit for puzzle and coloring books: the AI sales-copy generator
-  now works from each kind's own real content (puzzle themes/difficulty,
-  or page captions) instead of requiring prose chapters. Same rule as
-  before — nothing about price, checkout, or guarantees is invented;
-  those stay as visible bracketed placeholders for you to fill in.
+1. Delete the bad nested folder from your local clone
+----------------------------------------------------------
+    Remove-Item -Recurse -Force C:\Users\kchri\Downloads\productforge-ai\aiproductfactory\aiproductfactory
 
-No new AI calls were added anywhere in the generation pipeline — the EPUB
-changes are pure repackaging of content that was already being generated,
-and the Sales Kit change only touches which content it's allowed to run on.
+2. Extract this corrected zip into the real project folder
+-----------------------------------------------------------------
+    Expand-Archive -Path training-page-and-upgrade-links-update-FIXED.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
 
-1. Unzip the update into your local clone
--------------------------------------------
-    Expand-Archive -Path saleskit-epub-all-kinds-update.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
-
-2. Commit and push
+3. Commit and push
 ---------------------
     cd C:\Users\kchri\Downloads\productforge-ai\aiproductfactory
     git add -A
-    git commit -m "Extend Sales Kit and Kindle .epub to puzzle and coloring-book products"
+    git commit -m "Fix Training page update: remove misplaced nested folder, correct file locations"
     git push
 
-3. Deploy on the server
+   You should see the bad nested aiproductfactory/... files listed as
+   DELETED in this commit, alongside the same 7 files as before now
+   showing as MODIFIED in their correct locations (lib/productTypes.ts,
+   components/Navbar.tsx, app/dashboard/..., app/api/training-video/route.ts).
+   If you don't see deletions listed, stop and let me know before pushing.
+
+4. Deploy on the server
 ---------------------------
     ssh cloudb23@144.208.68.97
     cd ~/productforge-ai
     git pull && ./deploy.sh
 
-Nothing needs deleting this time — every file in this update is a
-replacement of an existing file, nothing was removed.
-
-4. Existing products
-------------------------
-This only affects NEW downloads going forward. Existing puzzle and
-coloring-book products won't have an .epub file yet (their epub_path is
-still empty in the database), so the Kindle download button won't appear
-for them until you click "Regenerate cover" on that product — that
-re-runs the same code path and builds the missing .epub alongside a
-refreshed cover, at no extra AI cost. There's no cover-only refresh that
-skips the EPUB build, and no separate "generate epub" action — the
-regenerate-cover button is the retry path for both.
+The video you already uploaded to data/training/product-genie-training.mp4
+is untouched by any of this — no need to re-upload it.

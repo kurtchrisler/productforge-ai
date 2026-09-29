@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PURCHASE_URLS } from "@/lib/productTypes";
 
 type MembershipLevel = "none" | "standard" | "pro";
 
@@ -217,8 +218,16 @@ export default function SettingsPage() {
               <p className="text-xs text-zinc-500 mt-1">
                 Want crossword puzzles, word search puzzles, coloring books,
                 the 75/100/150-page tiers, and a one-click sales page +
-                download page for every product? Upgrade to Pro, then come
-                back and click &quot;Refresh my license&quot;.
+                download page for every product?{" "}
+                <a
+                  href={PURCHASE_URLS.pro}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-indigo-600 hover:underline"
+                >
+                  Upgrade to Pro
+                </a>
+                , then come back and click &quot;Refresh my license&quot;.
               </p>
             )}
             {license && !license.kdpAccelerator && (
@@ -227,8 +236,16 @@ export default function SettingsPage() {
                 <strong>KDP Accelerator</strong> add-on unlocks the
                 Kindle-ready (.epub) download and a Kindle cover (.jpg)
                 download for every product — available on top of either
-                Standard or Pro. Purchase it, then come back and click
-                &quot;Refresh my license&quot;.
+                Standard or Pro.{" "}
+                <a
+                  href={PURCHASE_URLS.kdpAccelerator}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-indigo-600 hover:underline"
+                >
+                  Purchase KDP Accelerator
+                </a>
+                , then come back and click &quot;Refresh my license&quot;.
               </p>
             )}
           </form>
