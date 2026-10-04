@@ -1,38 +1,34 @@
-ProductGenie AI — Manual password reset tool
-==================================================
+ProductGenie AI — fix: scripts/ missing from the deployed container
+========================================================================
 
-Short answer to "how do I or they reset it": right now, nobody can reset
-their own password -- there's no "forgot password" link or email-sending
-service wired into the app yet. This is a one-off admin tool so YOU can
-reset a customer's password for them when they ask, until (if) a real
-self-service flow gets built. See the note at the bottom about that.
-
-What this does
+What happened
 ---------------
-Adds scripts/reset-password.mjs. You run it on the server, give it a
-customer's email and a new password, and it:
-  - Updates their password_hash in the database
-  - Signs them out of any devices they were already logged into (a
-    reasonable safety step any time a password changes)
+Docker's build is two stages: a "builder" stage that has your full source
+(including scripts/) and runs npm run build, and a separate, smaller
+"runner" stage that actually ships -- it only copies over the specific
+things the running app needs (package.json, node_modules, the compiled
+.next output, public/, next.config.ts). I added reset-password.mjs under
+scripts/, but never told the runner stage to copy that folder over, so it
+built fine but wasn't actually IN the container you ran `docker exec`
+against. That's exactly the "Cannot find module '/app/scripts/reset-
+password.mjs'" error.
 
-Then you tell the customer the new password however you'd like (reply to
-their support email, etc.) -- there's no "change your password" field in
-Settings yet either, so that password stands until you reset it again or
-that feature gets built.
-
-I tested this end-to-end (signup, reset, confirm the old password is
-rejected, confirm the new one works, confirm the old session got logged
-out) before packaging it.
+Fixed: added one line to the Dockerfile so the runner stage copies
+scripts/ too, the same way it already copies public/. I don't have a
+Docker daemon available on my end to run a real build and prove it end to
+end, but the fix is a direct, mechanical copy of the exact line already
+working for public/ just above it -- I'm confident in it, and your next
+deploy is the real test.
 
 1. Unzip into your local clone
 ----------------------------------
-    Expand-Archive -Path reset-password-tool.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
+    Expand-Archive -Path dockerfile-scripts-fix.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
 
 2. Commit and push
 ---------------------
     cd C:\Users\kchri\Downloads\productforge-ai\aiproductfactory
     git add -A
-    git commit -m "Add admin tool to manually reset a customer's password"
+    git commit -m "Fix Docker build: copy scripts/ into the runtime image"
     git push
 
 3. Deploy on the server
@@ -41,22 +37,10 @@ out) before packaging it.
     cd ~/productforge-ai
     git pull && ./deploy.sh
 
-4. Whenever someone needs a password reset
------------------------------------------------
-Run this on the server (it runs INSIDE the app's Docker container, since
-that's where the database and the bcrypt library live):
+4. Try the reset again
+---------------------------
+    docker exec -it productforge-ai node scripts/reset-password.mjs 360genesis@gmail.com "IDsd945*(sjaser"
 
-    docker exec -it productforge-ai node scripts/reset-password.mjs customer@example.com "NewPassword123"
-
-Wrap the password in quotes. It'll print confirmation once it's done, or
-tell you plainly if that email isn't found.
-
-About a real "forgot password" flow
-----------------------------------------
-If you'd rather customers reset their own password (an actual "Forgot
-password?" link on the login page that emails them a reset link), that's
-a bigger feature -- it needs a transactional email service wired up
-(something like Resend, SendGrid, or SMTP), since the app doesn't send any
-email today. Let me know if you want that built and which email service
-you'd like to use (or if you already have one set up for your other WP
-Marketer Tools products that makes sense to reuse), and I'll build it.
+If it still can't find the module after this, paste me the deploy.sh
+output (in case the build itself failed partway through) and I'll dig
+further.
