@@ -1,51 +1,38 @@
-ProductGenie AI — One purchase email can no longer activate more than one account
-====================================================================================
+ProductGenie AI — Manual password reset tool
+==================================================
+
+Short answer to "how do I or they reset it": right now, nobody can reset
+their own password -- there's no "forgot password" link or email-sending
+service wired into the app yet. This is a one-off admin tool so YOU can
+reset a customer's password for them when they ask, until (if) a real
+self-service flow gets built. See the note at the bottom about that.
 
 What this does
 ---------------
-Up to now, any account could type any purchase email into "Refresh my
-license" in Settings, and the app would grant that account whatever tier
-the license server said the email was entitled to — with no check for
-whether another account had already claimed that same email. That meant
-one purchase email could unlock Standard/Pro (or KDP Accelerator) on as
-many different accounts as someone tried it on.
+Adds scripts/reset-password.mjs. You run it on the server, give it a
+customer's email and a new password, and it:
+  - Updates their password_hash in the database
+  - Signs them out of any devices they were already logged into (a
+    reasonable safety step any time a password changes)
 
-Now, before granting access from a license-server "yes", the app checks
-whether another account already actively holds that email (an active
-Standard/Pro tier, or the KDP Accelerator add-on). If so, the new attempt
-is blocked with a clear message ("This purchase email is already active on
-a different ProductGenie AI account...") and nothing changes for either
-account — the existing holder keeps their access untouched, and the
-account making the blocked attempt just doesn't get granted anything.
+Then you tell the customer the new password however you'd like (reply to
+their support email, etc.) -- there's no "change your password" field in
+Settings yet either, so that password stands until you reset it again or
+that feature gets built.
 
-This is checked in both places a license gets verified:
-- Settings -> "Refresh my license"
-- The automatic check that runs right after signup (in case someone signs
-  up using an email that's already bound to a different account as a
-  purchase email)
-
-An account can always re-verify the email already bound to ITSELF (e.g.
-clicking "Refresh my license" again, or after later buying KDP
-Accelerator) — this only blocks a DIFFERENT account from claiming an
-already-claimed email.
-
-I tested this against a stub license server (so I could control its
-response without touching your real WP Marketer Tools server) covering:
-one account claiming an email, a second account being blocked from the
-same email (with its own existing access left untouched), an account
-freely re-verifying its own email, and a brand-new signup being blocked
-when its login email happens to match an email already claimed elsewhere.
-All passed.
+I tested this end-to-end (signup, reset, confirm the old password is
+rejected, confirm the new one works, confirm the old session got logged
+out) before packaging it.
 
 1. Unzip into your local clone
 ----------------------------------
-    Expand-Archive -Path license-email-conflict-fix.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
+    Expand-Archive -Path reset-password-tool.zip -DestinationPath C:\Users\kchri\Downloads\productforge-ai\aiproductfactory -Force
 
 2. Commit and push
 ---------------------
     cd C:\Users\kchri\Downloads\productforge-ai\aiproductfactory
     git add -A
-    git commit -m "Block a purchase email from activating more than one account"
+    git commit -m "Add admin tool to manually reset a customer's password"
     git push
 
 3. Deploy on the server
@@ -54,10 +41,22 @@ All passed.
     cd ~/productforge-ai
     git pull && ./deploy.sh
 
-Nothing to backfill — this only changes what happens on the NEXT license
-check for any account, it doesn't touch existing data. If two accounts
-already share the same license_email from before this fix, both will keep
-their current access; the block only kicks in the next time either of them
-(or a third account) tries to activate that email going forward, at which
-point whichever one is NOT already holding real access will be the one
-blocked.
+4. Whenever someone needs a password reset
+-----------------------------------------------
+Run this on the server (it runs INSIDE the app's Docker container, since
+that's where the database and the bcrypt library live):
+
+    docker exec -it productforge-ai node scripts/reset-password.mjs customer@example.com "NewPassword123"
+
+Wrap the password in quotes. It'll print confirmation once it's done, or
+tell you plainly if that email isn't found.
+
+About a real "forgot password" flow
+----------------------------------------
+If you'd rather customers reset their own password (an actual "Forgot
+password?" link on the login page that emails them a reset link), that's
+a bigger feature -- it needs a transactional email service wired up
+(something like Resend, SendGrid, or SMTP), since the app doesn't send any
+email today. Let me know if you want that built and which email service
+you'd like to use (or if you already have one set up for your other WP
+Marketer Tools products that makes sense to reuse), and I'll build it.
